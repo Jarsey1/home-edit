@@ -403,6 +403,68 @@ export function defaultRequirements(wishlistId: string): WishlistRequirement[] {
  * model. Category suggestions (the old "All" tab) were ideas, not selected
  * preferences, so they are intentionally not scored.
  */
+export function parseLegacyLabel(label: string): Partial<LegacyMapping> | null {
+  const bedrooms = label.match(/^(\d+)\+?\s*(?:bedrooms?|beds?)\b/i);
+  if (bedrooms) {
+    return {
+      featureKey: "beds",
+      type: "min",
+      expectedValue: Number(bedrooms[1]),
+      category: "bedrooms",
+      name: `At least ${bedrooms[1]} bedrooms`,
+    };
+  }
+  const bathrooms = label.match(/^(\d+(?:\.\d+)?)\+?\s*(?:bathrooms?|baths?)\b/i);
+  if (bathrooms) {
+    return {
+      featureKey: "baths",
+      type: "min",
+      expectedValue: Number(bathrooms[1]),
+      category: "bedrooms",
+      name: `At least ${bathrooms[1]} bathrooms`,
+    };
+  }
+  const garage = label.match(/^(\d+)\s*[- ]?(?:car|cars)?\s*garage/i);
+  if (garage) {
+    return {
+      featureKey: "garageCars",
+      type: "min",
+      expectedValue: Number(garage[1]),
+      category: "bedrooms",
+      name: `Garage for ${garage[1]} cars`,
+    };
+  }
+  const offices = label.match(/^(\d+)\+?\s*(?:offices?|office spaces?)/i);
+  if (offices) {
+    return {
+      featureKey: "officeSpaces",
+      type: "min",
+      expectedValue: Number(offices[1]),
+      category: "bedrooms",
+      name: `${offices[1]} office spaces`,
+    };
+  }
+  return null;
+}
+
+/** Upgrade requirements imported by an earlier V2 build without touching custom user text. */
+export function upgradeImportedRequirement(
+  requirement: WishlistRequirement,
+): WishlistRequirement {
+  if (!requirement.id.includes("-legacy-")) return requirement;
+  const parsed = parseLegacyLabel(requirement.name);
+  if (!parsed) return requirement;
+  return {
+    ...requirement,
+    featureKey: parsed.featureKey ?? requirement.featureKey,
+    type: parsed.type ?? requirement.type,
+    expectedValue: parsed.expectedValue ?? requirement.expectedValue,
+    category: parsed.category ?? requirement.category,
+    name: parsed.name ?? requirement.name,
+    custom: false,
+  };
+}
+
 export function requirementsFromLegacy(
   wishlistId: string,
   items: WishlistItem[],
@@ -417,9 +479,11 @@ export function requirementsFromLegacy(
 
   for (const item of selected) {
     const map =
-      item.kind === "must"
+      (item.kind === "must"
         ? LEGACY_MUST_MAP[item.label]
-        : LEGACY_NICE_MAP[item.label];
+        : LEGACY_NICE_MAP[item.label]) ?? parseLegacyLabel(item.label) as
+        | LegacyMapping
+        | undefined;
     const fallbackCategory: WishlistCategory =
       item.kind === "must" ? "interior" : "outdoor";
     const category = map?.category ?? fallbackCategory;

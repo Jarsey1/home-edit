@@ -9,9 +9,19 @@ import {
 
 export type EvaluationState = "met" | "not-met" | "unknown";
 
+export type EvaluationSource = "property" | "manual" | "none";
+
 export type RequirementEvaluation = {
   requirement: WishlistRequirement;
+  /** The state used for scoring (manual observations win). */
   state: EvaluationState;
+  /** What the stored property facts say. */
+  automaticState: EvaluationState;
+  /** A saved manual observation, or null. */
+  manualState: EvaluationState | null;
+  source: EvaluationSource;
+  /** Manual answer disagrees with verified property data. */
+  conflict: boolean;
   /** True when this confirmed evaluation disqualifies the property. */
   disqualifying: boolean;
   weight: number;
@@ -56,6 +66,14 @@ export type ScoreResult = {
 };
 
 export type ScoringWeights = Record<Importance, number>;
+
+export type ScoreOptions = {
+  /**
+   * Manual evaluation responses keyed by requirement id. Property facts are
+   * never modified; responses are layered on top for scoring.
+   */
+  manual?: Record<string, EvaluationState>;
+};
 
 export const EMPTY_SCORE: ScoreResult = {
   score: null,
@@ -229,6 +247,7 @@ export function scoreRequirements(
   requirements: WishlistRequirement[],
   facts: PropertyFacts,
   weights: ScoringWeights = DEFAULT_WEIGHTS,
+  options: ScoreOptions = {},
 ): ScoreResult {
   const active = requirements.filter((requirement) => requirement.configured !== false);
   const skippedCount = requirements.length - active.length;
@@ -238,10 +257,28 @@ export function scoreRequirements(
   }
 
   const evaluations: RequirementEvaluation[] = active.map((requirement) => {
-    const state = evaluateRequirement(requirement, facts);
+    const automaticState = evaluateRequirement(requirement, facts);
+    const savedManual = options.manual?.[requirement.id];
+    const manualState =
+      savedManual && savedManual !== "unknown" ? savedManual : null;
+    const state = manualState ?? automaticState;
+    const conflict = Boolean(
+      manualState &&
+        automaticState !== "unknown" &&
+        manualState !== automaticState,
+    );
     return {
       requirement,
       state,
+      automaticState,
+      manualState,
+      source:
+        manualState !== null
+          ? "manual"
+          : automaticState === "unknown"
+            ? "none"
+            : "property",
+      conflict,
       disqualifying: isDisqualifying(requirement, state),
       weight: requirementWeight(requirement, weights),
       actual: facts[requirement.featureKey] ?? null,
@@ -342,6 +379,7 @@ export type ComparisonSummary = {
   disqualified: ComparisonCandidate[];
   insufficient: ComparisonCandidate[];
   missingInformation: ComparisonCandidate[];
+  missingMustHaves: ComparisonCandidate[];
 };
 
 /**
@@ -354,8 +392,15 @@ export function buildComparisonSummary(
   const eligible = candidates.filter(
     (candidate) => !candidate.score.disqualified && candidate.score.score !== null,
   );
+  // Do not name a highest-ranked home when important information is missing.
+  const recommendable = eligible.filter(
+    (candidate) =>
+      candidate.score.coverage >= 50 &&
+      candidate.score.mustUnknown.length === 0 &&
+      candidate.score.mustMissing.length === 0,
+  );
 
-  const highestScore = [...eligible].sort(
+  const highestScore = [...recommendable].sort(
     (a, b) =>
       (b.score.score ?? -1) - (a.score.score ?? -1) ||
       b.score.coverage - a.score.coverage ||
@@ -384,6 +429,10 @@ export function buildComparisonSummary(
     disqualified: candidates.filter((candidate) => candidate.score.disqualified),
     insufficient: candidates.filter(
       (candidate) => !candidate.score.disqualified && candidate.score.score === null,
+    ),
+    missingMustHaves: candidates.filter(
+      (candidate) =>
+        !candidate.score.disqualified && candidate.score.mustMissing.length > 0,
     ),
     missingInformation: candidates.filter(
       (candidate) =>

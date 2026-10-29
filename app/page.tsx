@@ -7,6 +7,7 @@ import { AddHomeScreen } from "./components/screens/add-home-screen";
 import { BudgetScreen } from "./components/screens/budget-screen";
 import { CompareScreen } from "./components/screens/compare-screen";
 import { EditPropertyScreen } from "./components/screens/edit-property-screen";
+import { EvaluateScreen } from "./components/screens/evaluate-screen";
 import { MoreScreen } from "./components/screens/more-screen";
 import { NeighborhoodScreen } from "./components/screens/neighborhood-screen";
 import { PropertyScreen } from "./components/screens/property-screen";
@@ -21,7 +22,8 @@ type Overlay =
         | "tour"
         | "neighborhood"
         | "edit-home"
-        | "budget-property";
+        | "budget-property"
+        | "evaluate";
       homeId: string;
     }
   | { type: "add-home" };
@@ -49,6 +51,10 @@ export default function HomeApp() {
 
   function openProperty(homeId: string) {
     setOverlays([{ type: "property", homeId }]);
+  }
+
+  function openPropertyEvaluation(homeId: string) {
+    setOverlays([{ type: "evaluate", homeId }]);
   }
 
   function pushOverlay(type: OverlayType, homeId: string) {
@@ -82,6 +88,17 @@ export default function HomeApp() {
                   onOpenBudget={() =>
                     pushOverlay("budget-property", overlay.homeId)
                   }
+                  onEvaluate={() => pushOverlay("evaluate", overlay.homeId)}
+                />
+              )}
+
+              {overlay.type === "evaluate" && (
+                <EvaluateScreen
+                  key={overlay.homeId}
+                  home={overlayHome}
+                  onBack={goBack}
+                  onOpenWishlist={() => changeTab("wishlist")}
+                  onOpenEdit={() => pushOverlay("edit-home", overlay.homeId)}
                 />
               )}
 
@@ -130,12 +147,16 @@ export default function HomeApp() {
               onBrowseHomes={() => changeTab("homes")}
               onAddHome={() => setOverlays([{ type: "add-home" }])}
               onOpenWishlist={() => changeTab("wishlist")}
+              onEvaluate={openPropertyEvaluation}
             />
           )}
 
           {tab === "homes" && (
             <CompareScreen
               onOpenProperty={openProperty}
+              onOpenBudget={(homeId) =>
+                setOverlays([{ type: "budget-property", homeId }])
+              }
               onAddHome={() => setOverlays([{ type: "add-home" }])}
             />
           )}

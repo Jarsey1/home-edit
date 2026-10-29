@@ -48,11 +48,14 @@ Built with Next.js (App Router), React, Tailwind CSS and Supabase.
    and run it. It creates the original five tables and permissive policies for
    the shared dataset.
 
-   Then run [`supabase/migrations/0002_v2.sql`](supabase/migrations/0002_v2.sql).
-   It is additive: it adds `profiles`, `wishlists`, `wishlist_requirements`,
-   `property_details`, `property_tours` and `budget_scenarios`, and leaves all
-   existing rows alone. If you skip this step, every V2 feature still works on
-   this device using `localStorage`; it just will not sync between devices.
+   Then run [`supabase/migrations/0002_v2.sql`](supabase/migrations/0002_v2.sql)
+   and [`supabase/migrations/0003_evaluations.sql`](supabase/migrations/0003_evaluations.sql).
+   They are additive: they add `profiles`, `wishlists`,
+   `wishlist_requirements`, `property_details`, `property_tours`,
+   `budget_scenarios` and `property_evaluations`, plus a `confirmed` column on
+   budget plans. No existing rows are changed or deleted. If you skip these
+   steps, every V2/V2.1 feature still works on this device using
+   `localStorage`; it just will not sync between devices.
 
 4. Start the app:
 
@@ -75,9 +78,11 @@ Built with Next.js (App Router), React, Tailwind CSS and Supabase.
 - Original tables: `homes`, `wishlist_items`, `tour_notes`,
   `budget_settings`, `comparison_notes`.
 - V2 tables: `profiles`, `wishlists`, `wishlist_requirements`,
-  `property_details`, `property_tours`, `budget_scenarios`. Facts, photos,
-  personal notes and tour dates live in `property_details`; wishlist-specific
-  scores are never stored because they are recalculated from facts.
+  `property_details`, `property_tours`, `budget_scenarios`,
+  `property_evaluations`. Facts, photos, personal notes and tour dates live in
+  `property_details`; wishlist-specific scores are never stored because they
+  are recalculated from facts. Manual evaluation answers live in
+  `property_evaluations` and never overwrite the property facts.
 
 ## Adding a home
 
@@ -180,17 +185,85 @@ handles zero-interest loans, synchronizes down payment percentage and amount,
 and shows monthly ownership cost, annual cost, upfront cash and the difference
 from a target monthly budget. All figures are estimates, not lender quotes.
 
+## Guided property evaluation (V2.1)
+
+Open a saved home and choose **Evaluate home**, or use the dashboard’s
+**Your Next Step** card. The evaluation screen:
+
+- loads the property’s known facts and marks requirements automatically;
+- lets the user answer only what remains unknown;
+- supports Meets / Doesn’t meet / Unknown for every requirement;
+- saves each answer immediately and lets the user finish later;
+- shows the match score and evaluation coverage updating live;
+- flags manual answers that disagree with stored property facts, with a link
+  to correct the property data.
+
+Precedence is explicit: property facts are never changed by an evaluation.
+A manual observation is used for scoring when present, and a visible conflict
+warning explains the difference. Selecting the automatic value again clears
+the manual override.
+
+## More reliable budgets (V2.1)
+
+Budget plans now carry an explicit reliability state:
+
+- **Complete estimate** — assumptions were accepted or supplied.
+- **Estimate using assumptions** — taxes, insurance and maintenance use
+  labelled defaults.
+- **Partial estimate** — price or HOA is missing.
+
+Comparison tables hide a monthly cost when the plan is partial, show when
+assumptions were used, and link to the underlying plan. A property price below
+`NEXT_PUBLIC_PRICE_WARNING_THRESHOLD` (default **$25,000**) requires explicit
+confirmation but is never silently replaced.
+
+## Data storage and sync
+
+| Data | Storage | Sync |
+| --- | --- | --- |
+| Users / profiles | `profiles` (shared owner for now) | Only when V2 tables exist |
+| Wishlists | `wishlists` or `localStorage` | Supabase when `0002` is applied |
+| Requirements | `wishlist_requirements` or `localStorage` | Supabase when `0002` is applied |
+| Homes | `homes` | Shared Supabase dataset |
+| Feature facts | `property_details.facts` or `localStorage` | Supabase when `0002` is applied |
+| Photos | `property_details.photo` (compressed data URL) | Supabase when `0002` is applied |
+| Budget plans | `budget_scenarios` or `localStorage` | Supabase when `0002` is applied |
+| Evaluations | `property_evaluations` or `localStorage` | Supabase when `0003` is applied |
+| Tour notes | `tour_notes` | Shared Supabase dataset |
+| Comparison notes | `comparison_notes` | Shared Supabase dataset |
+
+See [`docs/v2.1-persistence.md`](docs/v2.1-persistence.md) for the full
+storage/sync report and safe migration sequence.
+
+No Supabase Storage bucket and no service-role key are used in the browser.
+Local data is never deleted by the app when migrations are applied. Back up
+`localStorage` before applying `0002`/`0003` if the device already contains
+V2/V2.1 data.
+
+## Cloudflare deployment
+
+The app is a standard Next.js App Router project and can be deployed to
+Cloudflare Workers with the OpenNext adapter, or to Cloudflare Pages with a
+Workers-backed Next runtime. Keep the Supabase URL and anon key as public
+build/runtime variables; never expose a service-role key. The free Miami-Dade
+and Photon lookups are server routes and need the Node/Workers runtime
+available. Verify that the chosen adapter supports the App Router route
+handlers before switching production traffic. Do not deploy until the
+migrations and RLS strategy are approved.
+
 ## Tests
 
 ```bash
-npm test        # 42 deterministic unit tests (Vitest)
+npm test        # 69 deterministic unit tests (Vitest)
 npm run lint    # ESLint
 npm run build   # production build
 ```
 
-Coverage includes weighted scoring, missing must-haves, unknown facts,
-dealbreaker exclusions, wishlist switching, mortgage math including zero
-interest, budget updates, property persistence and owner data isolation.
+Coverage includes weighted scoring, guided evaluations, automatic evaluation
+of known facts, manual overrides and conflicts, dealbreaker exclusions,
+wishlist switching, mortgage math including zero interest, budget reliability,
+price thresholds, comparison selection, property persistence and owner data
+isolation.
 
 ## Scripts
 

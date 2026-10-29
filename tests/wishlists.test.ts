@@ -127,6 +127,45 @@ describe("wishlist management", () => {
     );
   });
 
+  it("infers typed requirements from numeric legacy labels", () => {
+    const legacy: WishlistItem[] = [
+      {
+        id: "m1",
+        kind: "must",
+        category: null,
+        label: "4+ bedrooms",
+        done: true,
+        position: 0,
+      },
+      {
+        id: "m2",
+        kind: "must",
+        category: null,
+        label: "3+ bathrooms",
+        done: true,
+        position: 1,
+      },
+      {
+        id: "m3",
+        kind: "nice",
+        category: null,
+        label: "3-car garage",
+        done: true,
+        position: 0,
+      },
+    ];
+    const requirements = requirementsFromLegacy("w1", legacy);
+    expect(
+      requirements.find((entry) => entry.featureKey === "beds"),
+    ).toMatchObject({ type: "min", expectedValue: 4, configured: true });
+    expect(
+      requirements.find((entry) => entry.featureKey === "baths"),
+    ).toMatchObject({ type: "min", expectedValue: 3 });
+    expect(
+      requirements.find((entry) => entry.featureKey === "garageCars"),
+    ).toMatchObject({ type: "min", expectedValue: 3, importance: "nice" });
+  });
+
   it("reports setup progress separately from property matches", () => {
     const requirements = defaultRequirements("w1");
     const withDrafts = requirements.map((entry, index) => ({

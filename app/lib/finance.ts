@@ -1,4 +1,9 @@
 import {
+  DEFAULT_INSURANCE_RATE,
+  DEFAULT_MAINTENANCE_RATE,
+  DEFAULT_TAX_RATE,
+} from "./config";
+import {
   DEFAULT_BUDGET_INPUTS,
   type BudgetInputs,
 } from "./v2-types";
@@ -220,15 +225,15 @@ export function inputsForProperty(
     annualTaxes:
       base.annualTaxes && base.annualTaxes > 0
         ? base.annualTaxes
-        : roundCurrency(price * 0.0072),
+        : roundCurrency(price * DEFAULT_TAX_RATE),
     annualInsurance:
       base.annualInsurance && base.annualInsurance > 0
         ? base.annualInsurance
-        : roundCurrency(price * 0.0024),
+        : roundCurrency(price * DEFAULT_INSURANCE_RATE),
     monthlyMaintenance:
       base.monthlyMaintenance && base.monthlyMaintenance > 0
         ? base.monthlyMaintenance
-        : roundCurrency((price * 0.0013) / 12),
+        : roundCurrency((price * DEFAULT_MAINTENANCE_RATE) / 12),
   });
   return merged;
 }

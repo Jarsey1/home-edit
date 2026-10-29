@@ -74,6 +74,21 @@ export type PropertyFacts = Record<string, FactValue>;
 
 export type TourStatus = "none" | "scheduled" | "toured" | "cancelled";
 
+export type EvaluationResponse = "met" | "not-met";
+
+export type PropertyEvaluation = {
+  /** Deterministic key: homeId::wishlistId::requirementId */
+  id: string;
+  homeId: string;
+  wishlistId: string;
+  requirementId: string;
+  state: EvaluationResponse;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BudgetEstimateStatus = "complete" | "assumptions" | "partial";
+
 export type PropertyDetails = {
   homeId: string;
   /** Compressed data URL uploaded by the user. */
@@ -115,6 +130,8 @@ export type BudgetScenario = {
   wishlistId: string | null;
   propertyId: string | null;
   inputs: BudgetInputs;
+  /** True once the user explicitly accepts the assumptions in this plan. */
+  confirmed: boolean;
   updatedAt: string;
 };
 
@@ -239,6 +256,10 @@ export const FEATURE_CATALOG: CatalogFeature[] = [
   { key: "newRoof", category: "condition", kind: "boolean", label: "New roof" },
   { key: "centralAir", category: "condition", kind: "boolean", label: "Central air" },
   { key: "noMajorRepairs", category: "condition", kind: "boolean", label: "No major repairs" },
+  { key: "floodZone", category: "location", kind: "text", label: "Flood zone" },
+  { key: "walkScore", category: "location", kind: "number", label: "Walk score" },
+  { key: "schoolRating", category: "location", kind: "number", label: "School rating (1–10)" },
+  { key: "commuteMinutes", category: "location", kind: "number", label: "Commute minutes" },
   { key: "price", category: "financial", kind: "number", label: "Purchase price" },
   { key: "hoa", category: "financial", kind: "number", label: "Monthly HOA fee" },
   { key: "monthlyOwnershipCost", category: "financial", kind: "number", label: "Monthly ownership cost" },

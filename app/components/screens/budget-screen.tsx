@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type CSSProperties } from "react";
 import { useAppData } from "../../lib/app-data";
+import { budgetEstimateInfo } from "../../lib/budget-estimate";
 import {
   calculateBudget,
   inputsForProperty,
@@ -103,6 +104,7 @@ export function BudgetScreen({
   const {
     defaultScenario,
     getBudgetScenarioForProperty,
+    getBudgetEstimateForHome,
     saveScenarioInputs,
   } = useAppData();
   const { t, locale } = useI18n();
@@ -134,10 +136,26 @@ export function BudgetScreen({
   const result = useMemo(() => calculateBudget(inputs), [inputs]);
   const totalCost =
     result.downAmount + result.totalMonthly * Math.max(0, inputs.termYears) * 12;
+  const estimateInfo = property
+    ? getBudgetEstimateForHome(property.id) ??
+      budgetEstimateInfo({
+        price: inputs.price,
+        hoaKnown: true,
+        confirmed: scenario?.confirmed ?? false,
+      })
+    : budgetEstimateInfo({
+        price: inputs.price,
+        hoaKnown: true,
+        confirmed: scenario?.confirmed ?? false,
+      });
 
-  function apply(next: BudgetInputs) {
+  function apply(next: BudgetInputs, confirmed = scenario?.confirmed ?? false) {
     setInputs(next);
-    saveScenarioInputs(next, property?.id ?? null);
+    saveScenarioInputs(next, property?.id ?? null, confirmed);
+  }
+
+  function acceptAssumptions() {
+    saveScenarioInputs(inputs, property?.id ?? null, true);
   }
 
   const breakdownLabels: Record<BudgetBreakdownKey, string> = {
@@ -194,6 +212,105 @@ export function BudgetScreen({
             {t("budget.propertyOverrides")}
           </p>
         )}
+
+        <section
+          className={[
+            "mt-4 rounded-[22px] border px-4 py-3.5",
+            estimateInfo.status === "partial"
+              ? "border-clay/25 bg-clay/[0.06]"
+              : estimateInfo.status === "assumptions"
+                ? "border-gold/25 bg-gold/[0.07]"
+                : "border-olive/20 bg-olive/[0.06]",
+          ].join(" ")}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[9px] font-medium uppercase tracking-[0.16em] text-muted">
+                {t("budget.estimateStatus")}
+              </p>
+              <p className="mt-1 text-[12px] font-medium text-ink">
+                {estimateInfo.status === "complete"
+                  ? t("budget.statusComplete")
+                  : estimateInfo.status === "assumptions"
+                    ? t("budget.statusAssumptions")
+                    : t("budget.statusPartial")}
+              </p>
+            </div>
+            <span
+              className={[
+                "shrink-0 rounded-full px-2 py-0.5 text-[8.5px] uppercase tracking-[0.08em]",
+                estimateInfo.status === "partial"
+                  ? "bg-clay/10 text-clay"
+                  : estimateInfo.status === "assumptions"
+                    ? "bg-gold/10 text-[#6b5535]"
+                    : "bg-olive/10 text-olive",
+              ].join(" ")}
+            >
+              {estimateInfo.status === "partial"
+                ? t("budget.partialBadge")
+                : estimateInfo.status === "assumptions"
+                  ? t("budget.estimatedBadge")
+                  : t("budget.completeBadge")}
+            </span>
+          </div>
+
+          <p className="mt-1.5 text-[10px] leading-4 text-muted">
+            {estimateInfo.status === "complete"
+              ? t("budget.statusCompleteBody")
+              : estimateInfo.status === "assumptions"
+                ? t("budget.statusAssumptionsBody")
+                : t("budget.statusPartialBody")}
+          </p>
+
+          {estimateInfo.status !== "complete" && (
+            <ul className="mt-2 space-y-1">
+              {estimateInfo.missing.includes("price") && (
+                <li className="text-[9.5px] leading-4 text-clay">
+                  · {t("budget.missingPrice")}
+                </li>
+              )}
+              {estimateInfo.missing.includes("hoa") && (
+                <li className="text-[9.5px] leading-4 text-clay">
+                  · {t("budget.missingHoa")}
+                </li>
+              )}
+              {estimateInfo.assumed.includes("taxes") && (
+                <li className="text-[9.5px] leading-4 text-muted">
+                  ·{" "}
+                  {t("budget.assumptionTaxes", {
+                    amount: formatPrice(Math.round(result.breakdown[1].amount), locale),
+                  })}
+                </li>
+              )}
+              {estimateInfo.assumed.includes("insurance") && (
+                <li className="text-[9.5px] leading-4 text-muted">
+                  ·{" "}
+                  {t("budget.assumptionInsurance", {
+                    amount: formatPrice(Math.round(result.breakdown[2].amount), locale),
+                  })}
+                </li>
+              )}
+              {estimateInfo.assumed.includes("maintenance") && (
+                <li className="text-[9.5px] leading-4 text-muted">
+                  ·{" "}
+                  {t("budget.assumptionMaintenance", {
+                    amount: formatPrice(Math.round(result.breakdown[6].amount), locale),
+                  })}
+                </li>
+              )}
+            </ul>
+          )}
+
+          {estimateInfo.status !== "complete" && (
+            <button
+              type="button"
+              onClick={acceptAssumptions}
+              className="mt-2.5 min-h-9 rounded-full border border-olive/25 bg-white/60 px-3 text-[10px] font-medium text-olive transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
+            >
+              {t("budget.acceptAssumptions")}
+            </button>
+          )}
+        </section>
 
         <div className="mt-4 flex rounded-full border border-line bg-parchment p-1">
           {(

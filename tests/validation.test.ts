@@ -44,6 +44,18 @@ describe("home draft validation", () => {
     expect(result.suspiciousPrice).toBe(true);
   });
 
+  it("uses the configurable $25,000 price warning threshold", () => {
+    expect(
+      validateHomeDraft({ ...emptyDraft, price: "24999" }).suspiciousPrice,
+    ).toBe(true);
+    expect(
+      validateHomeDraft({ ...emptyDraft, price: "25000" }).suspiciousPrice,
+    ).toBe(false);
+    expect(
+      validateHomeDraft({ ...emptyDraft, price: "20000" }).suspiciousPrice,
+    ).toBe(true);
+  });
+
   it("reports negative and invalid numeric fields", () => {
     const result = validateHomeDraft({
       ...emptyDraft,

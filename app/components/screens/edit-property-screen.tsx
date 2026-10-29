@@ -23,6 +23,13 @@ import { CheckIcon } from "../icons";
 const fieldClass =
   "w-full rounded-2xl border border-line bg-white/60 px-4 py-3 text-[13px] text-ink outline-none transition-colors placeholder:text-muted/50 focus:border-olive/35 focus:ring-2 focus:ring-olive/15";
 
+const OPTIONAL_FACT_KEYS = [
+  "floodZone",
+  "walkScore",
+  "schoolRating",
+  "commuteMinutes",
+] as const;
+
 const CORE_FACT_KEYS = new Set([
   "price",
   "beds",
@@ -126,6 +133,17 @@ export function EditPropertyScreen({
     for (const custom of customFeatureKeys(activeRequirements)) {
       if (!map.has(custom.key)) {
         map.set(custom.key, { key: custom.key, label: custom.label, kind: "text" });
+      }
+    }
+    for (const key of OPTIONAL_FACT_KEYS) {
+      if (map.has(key)) continue;
+      const feature = FEATURE_BY_KEY[key];
+      if (feature) {
+        map.set(key, {
+          key,
+          label: feature.label,
+          kind: feature.kind,
+        });
       }
     }
     return [...map.values()];
@@ -601,7 +619,7 @@ export function EditPropertyScreen({
         {confirmSuspicious && (
           <div role="alertdialog" className="mt-5 rounded-2xl border border-gold/35 bg-gold/10 px-4 py-3.5">
             <p className="text-[12px] font-medium text-ink">{t("edit.suspiciousTitle")}</p>
-            <p className="mt-1 text-[10.5px] leading-4 text-muted">{t("edit.suspiciousBody")}</p>
+            <p className="mt-1 text-[10.5px] leading-4 text-muted">{t("validation.priceWarning")}</p>
             <div className="mt-3 flex gap-2">
               <button
                 type="button"

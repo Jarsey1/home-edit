@@ -1059,7 +1059,7 @@ export function AddHomeScreen({
                 {t("add.suspiciousTitle")}
               </p>
               <p className="mt-1 text-[10.5px] leading-4 text-muted">
-                {t("add.suspiciousBody")}
+                {t("validation.priceWarning")}
               </p>
               <div className="mt-3 flex gap-2">
                 <button

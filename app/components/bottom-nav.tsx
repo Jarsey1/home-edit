@@ -38,7 +38,7 @@ export function BottomNav({
   return (
     <nav
       aria-label={t("common.primary")}
-      className="sticky bottom-0 z-30 mt-auto border-t border-line/90 bg-cream/85 backdrop-blur-xl sm:rounded-b-[40px]"
+      className="sticky bottom-0 z-30 mt-auto border-t border-line/90 bg-cream/95 backdrop-blur-xl sm:rounded-b-[40px]"
     >
       <div className="flex items-stretch justify-between gap-1 px-3 pb-[max(0.55rem,env(safe-area-inset-bottom))] pt-2">
         {TABS.map(({ id, labelKey, Icon }) => {

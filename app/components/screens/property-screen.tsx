@@ -59,6 +59,7 @@ export function PropertyScreen({
   onOpenNeighborhood,
   onOpenEdit,
   onOpenBudget,
+  onEvaluate,
 }: {
   home: Home;
   onBack: () => void;
@@ -66,6 +67,7 @@ export function PropertyScreen({
   onOpenNeighborhood: () => void;
   onOpenEdit: () => void;
   onOpenBudget: () => void;
+  onEvaluate: () => void;
 }) {
   const {
     toggleSaved,
@@ -74,6 +76,7 @@ export function PropertyScreen({
     removeHome,
     getScoreForHome,
     getMonthlyCostForHome,
+    getBudgetEstimateForHome,
     activeWishlist,
     tourNotes,
   } = useAppData();
@@ -86,6 +89,7 @@ export function PropertyScreen({
   const favorite = Boolean(home.favorite);
   const score = getScoreForHome(home.id);
   const monthlyCost = getMonthlyCostForHome(home.id);
+  const budgetEstimate = getBudgetEstimateForHome(home.id);
   const note = tourNotes[home.id];
 
   const specs = [
@@ -376,6 +380,16 @@ export function PropertyScreen({
                   {t("property.factsMissing")}
                 </p>
               )}
+              {budgetEstimate?.status === "partial" && (
+                <p className="mt-1 text-[9.5px] leading-4 text-clay">
+                  {t("property.budgetPartial")}
+                </p>
+              )}
+              {budgetEstimate?.status === "assumptions" && (
+                <p className="mt-1 text-[9.5px] leading-4 text-muted">
+                  {t("property.budgetAssumptions")}
+                </p>
+              )}
             </>
           )}
         </section>
@@ -489,6 +503,25 @@ export function PropertyScreen({
         )}
 
         <div className="mt-6 space-y-2.5">
+          <button
+            type="button"
+            onClick={onEvaluate}
+            className="flex w-full items-center gap-3 rounded-2xl border border-olive/25 bg-olive/[0.06] px-4 py-3.5 text-left transition-colors hover:bg-olive/[0.1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-olive text-cream">
+              <CheckIcon className="h-[17px] w-[17px]" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12px] font-medium text-ink">
+                {t("property.evaluate")}
+              </span>
+              <span className="mt-0.5 block text-[10px] text-muted">
+                {t("property.evaluateDetail")}
+              </span>
+            </span>
+            <ChevronRightIcon className="h-4 w-4 shrink-0 text-olive/70" />
+          </button>
+
           <button
             type="button"
             onClick={onOpenEdit}

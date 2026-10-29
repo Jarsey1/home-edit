@@ -63,6 +63,7 @@ export const en = {
   "common.viewAll": "View all",
   "common.done": "Done",
   "common.saving": "Saving…",
+  "common.loadingData": "Loading your data…",
   "common.select": "Select",
 
   "nav.home": "Home",
@@ -123,7 +124,7 @@ export const en = {
   "dashboard.scoredHomes": "Scored homes",
   "dashboard.homesNeedingEvaluation": "Homes needing evaluation",
   "dashboard.needsEvaluationBody":
-    "Add the missing facts so these homes can be scored against {wishlist}.",
+    "Continue answering the evaluation questions for {wishlist}.",
   "dashboard.noScores":
     "Start evaluating your saved homes to discover your best matches.",
   "dashboard.noScoresBody":
@@ -219,7 +220,8 @@ export const en = {
   "more.soon": "Soon",
   "more.version": "Version 2.0 · Made for your search",
   "more.v2Synced": "Wishlists, photos and plans synced",
-  "more.v2Local": "Wishlists, photos and plans on this device only",
+  "more.v2Local": "Wishlists, photos, plans and evaluations on this device only",
+  "more.evaluationsLocal": "Wishlists and plans synced · evaluations on this device",
   "more.scoring": "Match scoring",
   "more.scoringDetail": "Must-have 5 · Nice-to-have 2 · Dealbreakers filter",
   "more.scoringWeights": "Default weights",
@@ -630,6 +632,128 @@ export const en = {
   "edit.tourCancelled": "Cancelled",
   "edit.tourNone": "No tour",
   "edit.removePhoto": "Remove photo",
+
+  "evaluate.eyebrow": "Property evaluation",
+  "evaluate.title": "Evaluate Home",
+  "evaluate.against": "Evaluating against",
+  "evaluate.progress": "{answered} of {total} answered",
+  "evaluate.unanswered": "{count} unanswered",
+  "evaluate.categoryNav": "Requirement categories",
+  "evaluate.detected": "From property data",
+  "evaluate.yourAnswer": "Your observation",
+  "evaluate.meets": "Meets",
+  "evaluate.notMet": "Doesn't meet",
+  "evaluate.unknown": "Unknown",
+  "evaluate.optionAria": "Mark {name} as {state}",
+  "evaluate.conflict":
+    "Your observation differs from stored property data. It is used for scoring; correct the property data if the listing is wrong.",
+  "evaluate.correctData": "Correct property data",
+  "evaluate.saveProgress": "Save & finish later",
+  "evaluate.saved": "Property evaluation saved.",
+  "evaluate.saving": "Saving evaluation…",
+  "evaluate.summary": "Current match",
+  "evaluate.coverage": "Weighted coverage",
+  "evaluate.scoreNote": "Match scores update automatically as you answer.",
+  "evaluate.noRequirements": "No configured preferences to evaluate.",
+  "evaluate.noRequirementsBody":
+    "Add or review preferences in your wishlist first.",
+  "evaluate.openWishlist": "Open wishlist",
+  "evaluate.autoBadge": "Property data",
+  "evaluate.manualBadge": "Your answer",
+  "evaluate.conflictBadge": "Conflict",
+  "evaluate.notRecorded": "Not recorded",
+
+  "dashboard.nextStep": "Your Next Step",
+  "dashboard.nextStepNoWishlist":
+    "Start by defining what matters most in your next home.",
+  "dashboard.nextStepNoHomes":
+    "Your dream home criteria are ready. Start adding properties to compare.",
+  "dashboard.nextStepNotEvaluated":
+    "You have saved homes waiting to be evaluated.",
+  "dashboard.nextStepPartial":
+    "You're getting closer! Continue evaluating your saved homes.",
+  "dashboard.nextStepReady": "Your home matches are ready to compare.",
+  "dashboard.createWishlist": "Create Wishlist",
+  "dashboard.addProperty": "Add Home",
+  "dashboard.evaluateHomes": "Evaluate Homes",
+  "dashboard.continueEvaluation": "Continue Evaluation",
+  "dashboard.compareHomes": "Compare Homes",
+  "dashboard.waitingEvaluation": "Homes waiting for evaluation",
+  "dashboard.unanswered": "{count} unanswered",
+  "dashboard.evaluationReady": "All saved homes have been evaluated.",
+  "dashboard.evaluationPercent": "{percent}% evaluated",
+  "dashboard.reviewWishlist": "Review Wishlist",
+  "dashboard.cannotEvaluate": "Add a configured preference to start evaluating.",
+  "dashboard.pendingCount": "{count} waiting",
+
+  "compare.selectProperties": "Compare properties",
+  "compare.selectHint": "Tap to choose two or more homes.",
+  "compare.showing": "{selected} of {total} homes",
+  "compare.all": "All",
+  "compare.atLeastTwo": "Keep at least two homes selected.",
+  "compare.sectionMatch": "Match & Priorities",
+  "compare.sectionDetails": "Property Details",
+  "compare.sectionFinancial": "Financial Comparison",
+  "compare.sectionNeighborhood": "Neighborhood",
+  "compare.sectionCommunity": "Community Amenities",
+  "compare.missingMust": "Missing must-haves: {address} ({count}).",
+  "compare.missingMustLabel": "Missing must-haves",
+  "compare.estimateStatus": "Estimate status",
+  "compare.assumptions": "Uses assumptions",
+  "compare.partialEstimate": "Incomplete",
+  "compare.costUnavailable": "Not enough financial information",
+  "compare.openBudget": "Open Budget",
+  "compare.noSelection": "Select at least two properties to compare.",
+  "compare.floodZone": "Flood zone",
+  "compare.walkScore": "Walk score",
+  "compare.schoolRating": "School rating",
+  "compare.commute": "Commute",
+  "compare.notRecorded": "Not recorded",
+  "compare.communityGym": "Community gym",
+  "compare.playground": "Playground",
+  "compare.clubhouse": "Clubhouse",
+  "compare.coveredPatio": "Covered patio",
+  "compare.outdoorKitchen": "Outdoor kitchen",
+  "compare.fencedYard": "Fenced yard",
+  "compare.statusAssumptions": "Estimated from assumptions",
+
+  "budget.statusComplete": "Complete estimate",
+  "budget.statusAssumptions": "Estimate using assumptions",
+  "budget.statusPartial": "Partial estimate",
+  "budget.statusCompleteBody":
+    "All required assumptions have been supplied or explicitly accepted.",
+  "budget.statusAssumptionsBody":
+    "Taxes, insurance and maintenance use labelled estimates. Review or accept them before relying on this figure.",
+  "budget.statusPartialBody":
+    "Add the missing information before relying on this estimate.",
+  "budget.assumptionTaxes":
+    "Property taxes are estimated at {amount}/month. Replace this with the property's actual tax estimate when available.",
+  "budget.assumptionInsurance":
+    "Homeowners insurance is estimated at {amount}/month.",
+  "budget.assumptionMaintenance":
+    "Maintenance is estimated at {amount}/month.",
+  "budget.assumptionHoa":
+    "HOA is estimated at {amount}/month. Confirm or replace it.",
+  "budget.missingPrice": "Purchase price is missing.",
+  "budget.missingHoa":
+    "HOA fee is unknown. Enter the actual amount, or 0 if there is no HOA.",
+  "budget.acceptAssumptions": "Accept these assumptions",
+  "budget.assumptionsAccepted": "Assumptions accepted.",
+  "budget.estimatedBadge": "Estimate",
+  "budget.partialBadge": "Partial",
+  "budget.completeBadge": "Complete",
+  "budget.estimateStatus": "Estimate reliability",
+
+  "validation.priceWarning":
+    "This purchase price is unusually low. Please confirm that the amount is correct.",
+  "property.evaluate": "Evaluate home",
+  "property.evaluateDetail": "Review your wishlist, step by step",
+  "property.budgetPartial": "Partial estimate — add missing financial details",
+  "property.budgetAssumptions": "Estimate uses assumptions",
+  "property.budgetComplete": "Complete estimate",
+  "common.notRecorded": "Not recorded",
+  "common.retry": "Retry",
+  "common.error": "Something went wrong. Please try again.",
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -686,6 +810,7 @@ const es: Record<TranslationKey, string> = {
   "common.viewAll": "Ver todo",
   "common.done": "Listo",
   "common.saving": "Guardando…",
+  "common.loadingData": "Cargando tus datos…",
   "common.select": "Seleccionar",
 
   "nav.home": "Inicio",
@@ -750,7 +875,7 @@ const es: Record<TranslationKey, string> = {
   "dashboard.scoredHomes": "Casas evaluadas",
   "dashboard.homesNeedingEvaluation": "Casas por evaluar",
   "dashboard.needsEvaluationBody":
-    "Agrega los datos que faltan para evaluar estas casas con {wishlist}.",
+    "Sigue respondiendo las preguntas de evaluación para {wishlist}.",
   "dashboard.noScores":
     "Empieza a evaluar tus casas guardadas para descubrir tus mejores coincidencias.",
   "dashboard.noScoresBody":
@@ -852,7 +977,8 @@ const es: Record<TranslationKey, string> = {
   "more.soon": "Pronto",
   "more.version": "Versión 2.0 · Hecha para tu búsqueda",
   "more.v2Synced": "Listas, fotos y planes sincronizados",
-  "more.v2Local": "Listas, fotos y planes solo en este dispositivo",
+  "more.v2Local": "Listas, fotos, planes y evaluaciones solo en este dispositivo",
+  "more.evaluationsLocal": "Listas y planes sincronizados · evaluaciones en este dispositivo",
   "more.scoring": "Evaluación de compatibilidad",
   "more.scoringDetail": "Imprescindible 5 · Deseo 2 · Filtros eliminatorios",
   "more.scoringWeights": "Pesos predeterminados",
@@ -1265,6 +1391,133 @@ const es: Record<TranslationKey, string> = {
   "edit.tourCancelled": "Cancelada",
   "edit.tourNone": "Sin visita",
   "edit.removePhoto": "Quitar foto",
+
+  "evaluate.eyebrow": "Evaluación de la propiedad",
+  "evaluate.title": "Evaluar casa",
+  "evaluate.against": "Evaluando con",
+  "evaluate.progress": "{answered} de {total} respondidas",
+  "evaluate.unanswered": "{count} sin responder",
+  "evaluate.categoryNav": "Categorías de preferencias",
+  "evaluate.detected": "Según los datos de la propiedad",
+  "evaluate.yourAnswer": "Tu observación",
+  "evaluate.meets": "Cumple",
+  "evaluate.notMet": "No cumple",
+  "evaluate.unknown": "Desconocido",
+  "evaluate.optionAria": "Marcar {name} como {state}",
+  "evaluate.conflict":
+    "Tu observación difiere de los datos guardados. Se usa para la evaluación; corrige los datos si el anuncio está equivocado.",
+  "evaluate.correctData": "Corregir datos",
+  "evaluate.saveProgress": "Guardar y continuar después",
+  "evaluate.saved": "Evaluación de la propiedad guardada.",
+  "evaluate.saving": "Guardando evaluación…",
+  "evaluate.summary": "Compatibilidad actual",
+  "evaluate.coverage": "Cobertura ponderada",
+  "evaluate.scoreNote":
+    "La compatibilidad se actualiza automáticamente al responder.",
+  "evaluate.noRequirements": "No hay preferencias configuradas para evaluar.",
+  "evaluate.noRequirementsBody":
+    "Agrega o revisa preferencias en tu lista primero.",
+  "evaluate.openWishlist": "Abrir lista",
+  "evaluate.autoBadge": "Datos de la propiedad",
+  "evaluate.manualBadge": "Tu respuesta",
+  "evaluate.conflictBadge": "Conflicto",
+  "evaluate.notRecorded": "Sin registrar",
+
+  "dashboard.nextStep": "Tu siguiente paso",
+  "dashboard.nextStepNoWishlist":
+    "Empieza por definir lo que más importa en tu próxima casa.",
+  "dashboard.nextStepNoHomes":
+    "Tus criterios están listos. Empieza a agregar propiedades para comparar.",
+  "dashboard.nextStepNotEvaluated":
+    "Tienes casas guardadas esperando evaluación.",
+  "dashboard.nextStepPartial":
+    "¡Vas por buen camino! Sigue evaluando tus casas guardadas.",
+  "dashboard.nextStepReady":
+    "Tus coincidencias están listas para comparar.",
+  "dashboard.createWishlist": "Crear lista",
+  "dashboard.addProperty": "Agregar casa",
+  "dashboard.evaluateHomes": "Evaluar casas",
+  "dashboard.continueEvaluation": "Continuar evaluación",
+  "dashboard.compareHomes": "Comparar casas",
+  "dashboard.waitingEvaluation": "Casas pendientes de evaluación",
+  "dashboard.unanswered": "{count} sin responder",
+  "dashboard.evaluationReady": "Todas las casas guardadas fueron evaluadas.",
+  "dashboard.evaluationPercent": "{percent}% evaluado",
+  "dashboard.reviewWishlist": "Revisar lista",
+  "dashboard.cannotEvaluate":
+    "Agrega una preferencia configurada para empezar a evaluar.",
+  "dashboard.pendingCount": "{count} pendientes",
+
+  "compare.selectProperties": "Comparar propiedades",
+  "compare.selectHint": "Toca para elegir dos o más casas.",
+  "compare.showing": "{selected} de {total} casas",
+  "compare.all": "Todas",
+  "compare.atLeastTwo": "Mantén al menos dos casas seleccionadas.",
+  "compare.sectionMatch": "Compatibilidad y prioridades",
+  "compare.sectionDetails": "Detalles de la propiedad",
+  "compare.sectionFinancial": "Comparación financiera",
+  "compare.sectionNeighborhood": "Vecindario",
+  "compare.sectionCommunity": "Amenidades de la comunidad",
+  "compare.missingMust":
+    "Imprescindibles faltantes: {address} ({count}).",
+  "compare.missingMustLabel": "Imprescindibles faltantes",
+  "compare.estimateStatus": "Estado de la estimación",
+  "compare.assumptions": "Usa supuestos",
+  "compare.partialEstimate": "Incompleta",
+  "compare.costUnavailable": "Falta información financiera",
+  "compare.openBudget": "Abrir presupuesto",
+  "compare.noSelection": "Elige al menos dos propiedades para comparar.",
+  "compare.floodZone": "Zona de inundación",
+  "compare.walkScore": "Caminabilidad",
+  "compare.schoolRating": "Calificación escolar",
+  "compare.commute": "Viaje",
+  "compare.notRecorded": "Sin registrar",
+  "compare.communityGym": "Gimnasio comunitario",
+  "compare.playground": "Área de juegos",
+  "compare.clubhouse": "Casa club",
+  "compare.coveredPatio": "Patio cubierto",
+  "compare.outdoorKitchen": "Cocina exterior",
+  "compare.fencedYard": "Patio cercado",
+  "compare.statusAssumptions": "Estimado con supuestos",
+
+  "budget.statusComplete": "Estimación completa",
+  "budget.statusAssumptions": "Estimación con supuestos",
+  "budget.statusPartial": "Estimación parcial",
+  "budget.statusCompleteBody":
+    "Todos los supuestos necesarios fueron proporcionados o aceptados.",
+  "budget.statusAssumptionsBody":
+    "Impuestos, seguro y mantenimiento usan estimaciones etiquetadas. Revísalas o acéptalas antes de confiar en esta cifra.",
+  "budget.statusPartialBody":
+    "Agrega la información faltante antes de confiar en esta estimación.",
+  "budget.assumptionTaxes":
+    "Los impuestos se estiman en {amount}/mes. Reemplaza este monto con el impuesto real de la propiedad cuando esté disponible.",
+  "budget.assumptionInsurance":
+    "El seguro de vivienda se estima en {amount}/mes.",
+  "budget.assumptionMaintenance":
+    "El mantenimiento se estima en {amount}/mes.",
+  "budget.assumptionHoa":
+    "El HOA se estima en {amount}/mes. Confírmalo o reemplázalo.",
+  "budget.missingPrice": "Falta el precio de compra.",
+  "budget.missingHoa":
+    "La cuota de HOA es desconocida. Ingresa el monto real, o 0 si no hay HOA.",
+  "budget.acceptAssumptions": "Aceptar estos supuestos",
+  "budget.assumptionsAccepted": "Supuestos aceptados.",
+  "budget.estimatedBadge": "Estimado",
+  "budget.partialBadge": "Parcial",
+  "budget.completeBadge": "Completo",
+  "budget.estimateStatus": "Confiabilidad de la estimación",
+
+  "validation.priceWarning":
+    "Este precio de compra es inusualmente bajo. Confirma que el monto sea correcto.",
+  "property.evaluate": "Evaluar casa",
+  "property.evaluateDetail": "Revisa tu lista, paso a paso",
+  "property.budgetPartial":
+    "Estimación parcial: agrega los datos financieros que faltan",
+  "property.budgetAssumptions": "La estimación usa supuestos",
+  "property.budgetComplete": "Estimación completa",
+  "common.notRecorded": "Sin registrar",
+  "common.retry": "Reintentar",
+  "common.error": "Algo salió mal. Inténtalo de nuevo.",
 };
 
 /**

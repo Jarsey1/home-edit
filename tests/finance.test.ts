@@ -94,6 +94,38 @@ describe("budget calculations", () => {
     expect(result.monthlyPrincipalInterest).toBe(0);
   });
 
+  it("keeps monthly, annual, interest and upfront figures consistent", () => {
+    const result = calculateBudget({
+      ...DEFAULT_BUDGET_INPUTS,
+      price: 500_000,
+      downPercent: 20,
+      downAmount: 100_000,
+      rate: 6,
+      termYears: 30,
+      annualTaxes: 6_000,
+      annualInsurance: 1_800,
+      monthlyHoa: 200,
+      monthlyMaintenance: 100,
+    });
+    expect(result.annualCost).toBeCloseTo(result.totalMonthly * 12, 6);
+    expect(result.totalLoanPayments).toBeCloseTo(
+      result.monthlyPrincipalInterest * 360,
+      6,
+    );
+    expect(result.totalInterest).toBeCloseTo(
+      result.totalLoanPayments - result.loanAmount,
+      6,
+    );
+    expect(result.upfrontCash).toBe(
+      100_000 +
+        DEFAULT_BUDGET_INPUTS.closingCosts +
+        DEFAULT_BUDGET_INPUTS.inspection +
+        DEFAULT_BUDGET_INPUTS.appraisal +
+        DEFAULT_BUDGET_INPUTS.moving +
+        DEFAULT_BUDGET_INPUTS.initialRepairs,
+    );
+  });
+
   it("builds a property-specific scenario without mutating listing data", () => {
     const property = { price: 850_000, hoa: 250 };
     const scenario = inputsForProperty(property, {

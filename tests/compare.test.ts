@@ -94,6 +94,35 @@ describe("comparison summary", () => {
     expect(summary.highestScore).toBeNull();
   });
 
+  it("lists homes with missing must-haves separately", () => {
+    const missing = {
+      id: "missing",
+      address: "6 Missing St",
+      city: "Miami",
+      score: scoreRequirements(requirements, { beds: 2, pool: true }),
+      monthlyCost: 4_000,
+    };
+    const summary = buildComparisonSummary([missing]);
+    expect(summary.missingMustHaves.map((entry) => entry.id)).toEqual([
+      "missing",
+    ]);
+  });
+
+  it("does not name a highest home when must-haves are unverified", () => {
+    const unverified = {
+      id: "unverified",
+      address: "7 Unverified St",
+      city: "Miami",
+      score: scoreRequirements(requirements, { pool: true }),
+      monthlyCost: 4_000,
+    };
+    const summary = buildComparisonSummary([unverified]);
+    expect(summary.highestScore).toBeNull();
+    expect(summary.missingInformation.map((entry) => entry.id)).toEqual([
+      "unverified",
+    ]);
+  });
+
   it("flags limited coverage as missing information", () => {
     const partial = {
       id: "partial",

@@ -1,3 +1,5 @@
+import { PRICE_WARNING_THRESHOLD } from "./config";
+
 export type NumericParseResult = {
   value: number | null;
   empty: boolean;
@@ -81,8 +83,6 @@ export type HomeValidation = {
   values: HomeDraftValues;
 };
 
-const SUSPICIOUS_PRICE = 10_000;
-
 export function validateHomeDraft(draft: HomeDraft): HomeValidation {
   const errors: HomeValidation["errors"] = {};
 
@@ -152,7 +152,9 @@ export function validateHomeDraft(draft: HomeDraft): HomeValidation {
     valid: Object.keys(errors).length === 0,
     errors,
     suspiciousPrice:
-      values.price !== null && values.price > 0 && values.price < SUSPICIOUS_PRICE,
+      values.price !== null &&
+      values.price > 0 &&
+      values.price < PRICE_WARNING_THRESHOLD,
     values,
   };
 }

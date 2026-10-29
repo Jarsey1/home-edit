@@ -42,6 +42,7 @@ export function MoreScreen({
     topMatches,
     status,
     v2Synced,
+    evaluationsSynced,
     activeWishlist,
     wishlistProgress,
   } = useAppData();
@@ -232,7 +233,9 @@ export function MoreScreen({
             />
             {status === "synced"
               ? v2Synced
-                ? t("more.synced")
+                ? evaluationsSynced
+                  ? t("more.synced")
+                  : t("more.evaluationsLocal")
                 : t("more.v2Local")
               : status === "local"
                 ? t("more.local")

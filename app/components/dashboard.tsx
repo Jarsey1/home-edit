@@ -44,11 +44,13 @@ export function Dashboard({
   onBrowseHomes,
   onAddHome,
   onOpenWishlist,
+  onEvaluate,
 }: {
   onOpenProperty: (homeId: string) => void;
   onBrowseHomes: () => void;
   onAddHome: () => void;
   onOpenWishlist: () => void;
+  onEvaluate: (homeId: string) => void;
 }) {
   const {
     savedCount,
@@ -56,9 +58,12 @@ export function Dashboard({
     wishlistProgress,
     strongMatches,
     topMatches,
-    homesNeedingEvaluation,
     activeWishlist,
+    activeRequirements,
+    evaluationSummaries,
+    pendingEvaluations,
     toggleSaved,
+    ready,
   } = useAppData();
   const { t, locale, number } = useI18n();
 
@@ -79,6 +84,60 @@ export function Dashboard({
   ];
   const progress = wishlistProgress.percent;
   const saved = topHome?.saved ?? false;
+  const hasConfiguredWishlist = activeRequirements.some(
+    (requirement) =>
+      requirement.configured && requirement.importance !== "ignore",
+  );
+  const evaluatedCount = evaluationSummaries.filter(
+    (summary) => summary.answered > 0,
+  ).length;
+  const targetEvaluation =
+    pendingEvaluations[0]?.home ?? evaluationSummaries[0]?.home ?? null;
+
+  let nextStep: {
+    body: string;
+    label: string;
+    onClick: () => void;
+  };
+  if (!hasConfiguredWishlist) {
+    nextStep = {
+      body: t("dashboard.nextStepNoWishlist"),
+      label: activeWishlist
+        ? t("dashboard.reviewWishlist")
+        : t("dashboard.createWishlist"),
+      onClick: onOpenWishlist,
+    };
+  } else if (savedCount === 0) {
+    nextStep = {
+      body: t("dashboard.nextStepNoHomes"),
+      label: t("dashboard.addProperty"),
+      onClick: onAddHome,
+    };
+  } else if (evaluatedCount === 0) {
+    nextStep = targetEvaluation
+      ? {
+          body: t("dashboard.nextStepNotEvaluated"),
+          label: t("dashboard.evaluateHomes"),
+          onClick: () => onEvaluate(targetEvaluation.id),
+        }
+      : {
+          body: t("dashboard.cannotEvaluate"),
+          label: t("dashboard.reviewWishlist"),
+          onClick: onOpenWishlist,
+        };
+  } else if (pendingEvaluations.length > 0 && targetEvaluation) {
+    nextStep = {
+      body: t("dashboard.nextStepPartial"),
+      label: t("dashboard.continueEvaluation"),
+      onClick: () => onEvaluate(targetEvaluation.id),
+    };
+  } else {
+    nextStep = {
+      body: t("dashboard.nextStepReady"),
+      label: t("dashboard.compareHomes"),
+      onClick: onBrowseHomes,
+    };
+  }
 
   return (
     <div className="flex flex-1 flex-col">
@@ -92,6 +151,11 @@ export function Dashboard({
           <p className="mt-3 text-[13px] tracking-[0.01em] text-muted">
             {t("dashboard.tagline")}
           </p>
+          {!ready && (
+            <p role="status" className="mt-1 text-[10px] text-muted">
+              {t("common.loadingData")}
+            </p>
+          )}
         </div>
 
         <div className="mt-1 flex shrink-0 items-center gap-2">
@@ -175,6 +239,25 @@ export function Dashboard({
               </div>
             ))}
           </dl>
+        </div>
+      </section>
+
+      <section className="mt-6 px-6">
+        <div className="rounded-[24px] border border-olive/20 bg-olive/[0.055] px-5 py-4">
+          <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted">
+            {t("dashboard.nextStep")}
+          </p>
+          <p className="mt-2 font-serif text-[19px] leading-[1.3] tracking-[-0.01em] text-ink">
+            {nextStep.body}
+          </p>
+          <button
+            type="button"
+            onClick={nextStep.onClick}
+            className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-full bg-olive px-4 text-[11px] font-medium text-cream transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
+          >
+            {nextStep.label}
+            <ArrowUpRightIcon className="h-3.5 w-3.5" />
+          </button>
         </div>
       </section>
 
@@ -303,10 +386,20 @@ export function Dashboard({
                 >
                   {statusLabel(topScored.score, t)}
                 </p>
-                {topScored.monthlyCost !== null && (
+                {topScored.monthlyCost !== null &&
+                topScored.budgetEstimate.status !== "partial" ? (
                   <p className="mt-1 text-[10px] tabular-nums text-muted">
                     {t("compare.monthlyCost")}:{" "}
                     {formatPrice(Math.round(topScored.monthlyCost), locale)}
+                    {topScored.budgetEstimate.status === "assumptions" && (
+                      <span className="ml-1 text-[8.5px] uppercase tracking-[0.08em]">
+                        · {t("compare.assumptions")}
+                      </span>
+                    )}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-[9.5px] text-muted">
+                    {t("compare.costUnavailable")}
                   </p>
                 )}
               </div>
@@ -359,49 +452,83 @@ export function Dashboard({
           </div>
         )}
 
-        {homesNeedingEvaluation.length > 0 && (
+        {pendingEvaluations.length > 0 && (
           <section className="mt-7">
-            <h2 className="font-serif text-[20px] tracking-[-0.01em] text-ink">
-              {t("dashboard.homesNeedingEvaluation")}
-            </h2>
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="font-serif text-[20px] tracking-[-0.01em] text-ink">
+                {t("dashboard.waitingEvaluation")}
+              </h2>
+              <span className="text-[9.5px] uppercase tracking-[0.12em] text-muted">
+                {t("dashboard.pendingCount", {
+                  count: pendingEvaluations.length,
+                })}
+              </span>
+            </div>
             <p className="mt-1 text-[10.5px] leading-4 text-muted">
               {t("dashboard.needsEvaluationBody", { wishlist: activeName })}
             </p>
             <div className="mt-3 space-y-2">
-              {homesNeedingEvaluation.slice(0, 3).map((entry) => (
-                <button
-                  key={entry.home.id}
-                  type="button"
-                  onClick={() => onOpenProperty(entry.home.id)}
-                  className="flex w-full items-center gap-3 rounded-2xl border border-line bg-white/45 px-3 py-2.5 text-left transition-colors hover:bg-parchment/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
+              {pendingEvaluations.slice(0, 4).map((summary) => (
+                <article
+                  key={summary.home.id}
+                  className="rounded-2xl border border-line bg-white/45 p-3"
                 >
-                  <PropertyPhoto
-                    home={entry.home}
-                    className="h-11 w-12 shrink-0 rounded-lg border border-line/70"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[11px] font-medium text-ink">
-                      {entry.home.address}
+                  <div className="flex items-center gap-3">
+                    <PropertyPhoto
+                      home={summary.home}
+                      className="h-12 w-14 shrink-0 rounded-xl border border-line/70"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => onOpenProperty(summary.home.id)}
+                      className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
+                    >
+                      <span className="block truncate text-[11.5px] font-medium text-ink">
+                        {summary.home.address}
+                      </span>
+                      <span className="mt-0.5 block text-[9.5px] text-muted">
+                        {t("dashboard.evaluationPercent", {
+                          percent: Math.round(summary.percent),
+                        })}
+                      </span>
+                    </button>
+                    <span className="shrink-0 font-serif text-[16px] text-ink">
+                      {Math.round(summary.percent)}%
                     </span>
-                    <span className="mt-0.5 block text-[9.5px] text-muted">
-                      {entry.score.score === null
-                        ? t("compare.statusInsufficient")
-                        : t("dashboard.evaluated", {
-                            percent: Math.round(entry.score.coverage),
-                          })}
+                  </div>
+                  <div className="mt-2 flex items-center gap-3">
+                    <div className="h-1 flex-1 overflow-hidden rounded-full bg-sand">
+                      <div
+                        className="h-full rounded-full bg-olive"
+                        style={{
+                          width: `${Math.min(100, summary.percent)}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="shrink-0 text-[9px] tabular-nums text-muted">
+                      {t("dashboard.unanswered", {
+                        count: summary.unanswered,
+                      })}
                     </span>
-                  </span>
-                  <QuestionIcon className="h-4 w-4 shrink-0 text-muted" />
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => onEvaluate(summary.home.id)}
+                      className="min-h-9 shrink-0 rounded-full border border-olive/25 bg-olive/[0.07] px-3 text-[9.5px] font-medium text-olive transition-colors hover:bg-olive/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
+                    >
+                      {t("dashboard.continueEvaluation")}
+                    </button>
+                  </div>
+                </article>
               ))}
             </div>
           </section>
         )}
 
-        {topMatches.length > 0 && homesNeedingEvaluation.length === 0 && (
+        {pendingEvaluations.length === 0 &&
+          evaluationSummaries.some((summary) => summary.total > 0) && (
           <p className="mt-5 flex items-center justify-center gap-1.5 text-[10px] text-muted">
             <CheckIcon className="h-3 w-3 text-olive" />
-            {t("dashboard.matchScoresLive")}
+            {t("dashboard.evaluationReady")}
           </p>
         )}
 

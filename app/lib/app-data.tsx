@@ -17,10 +17,22 @@ import {
   DEFAULT_TOUR_NOTES,
   DEFAULT_WISHLIST,
 } from "./defaults";
+import { budgetEstimateInfo, type BudgetEstimateInfo } from "./budget-estimate";
 import { calculateBudget, inputsForProperty } from "./finance";
 import type { Home } from "./homes";
 import { factsFromHome } from "./property-facts";
-import { scoreRequirements, type ScoreResult } from "./scoring";
+import {
+  buildEvaluationRows,
+  evaluationId,
+  evaluationProgress,
+  manualEvaluationMap,
+  type EvaluationRow,
+} from "./evaluations";
+import {
+  scoreRequirements,
+  type EvaluationState,
+  type ScoreResult,
+} from "./scoring";
 import { hasSupabaseConfig, supabase } from "./supabase";
 import type {
   BudgetSettings,
@@ -32,9 +44,11 @@ import type {
 import {
   DEFAULT_BUDGET_INPUTS,
   DEFAULT_OWNER_ID,
+  DEFAULT_WEIGHTS,
   type BudgetInputs,
   type BudgetScenario,
   type PropertyDetails,
+  type PropertyEvaluation,
   type PropertyFacts,
   type RequirementValue,
   type TourStatus,
@@ -52,6 +66,7 @@ import {
   nowIso,
   requirementsFor,
   requirementsFromLegacy,
+  upgradeImportedRequirement,
   wishlistSetupProgress,
 } from "./wishlists";
 import { newId } from "./wishlists";
@@ -69,6 +84,7 @@ type Snapshot = {
   requirements: WishlistRequirement[];
   details: Record<string, PropertyDetails>;
   scenarios: BudgetScenario[];
+  evaluations: PropertyEvaluation[];
 };
 
 type SyncStatus = "loading" | "synced" | "local";
@@ -78,6 +94,15 @@ export type ScoredHome = {
   facts: PropertyFacts;
   score: ScoreResult;
   monthlyCost: number | null;
+  budgetEstimate: BudgetEstimateInfo;
+};
+
+export type EvaluationSummary = {
+  home: Home;
+  answered: number;
+  unanswered: number;
+  total: number;
+  percent: number;
 };
 
 export type NewHomeInput = {
@@ -140,6 +165,7 @@ type AppData = Snapshot & {
   status: SyncStatus;
   configured: boolean;
   v2Synced: boolean;
+  saving: boolean;
   topMatch: Home;
   savedCount: number;
   upcomingTours: number;
@@ -154,11 +180,25 @@ type AppData = Snapshot & {
   scoredHomes: ScoredHome[];
   topMatches: ScoredHome[];
   homesNeedingEvaluation: ScoredHome[];
+  evaluations: PropertyEvaluation[];
+  evaluationsSynced: boolean;
+  evaluationSummaries: EvaluationSummary[];
+  pendingEvaluations: EvaluationSummary[];
+  nextEvaluationHome: Home | null;
   defaultScenario: BudgetScenario;
   activeScenario: BudgetScenario;
   getScoreForHome: (homeId: string) => ScoreResult | null;
+  getFactsForHome: (homeId: string) => PropertyFacts | null;
+  getEvaluationRows: (homeId: string, wishlistId: string) => EvaluationRow[];
   getMonthlyCostForHome: (homeId: string) => number | null;
+  getBudgetEstimateForHome: (homeId: string) => BudgetEstimateInfo | null;
   getBudgetScenarioForProperty: (homeId: string) => BudgetScenario | null;
+  setEvaluation: (
+    homeId: string,
+    wishlistId: string,
+    requirementId: string,
+    state: EvaluationState,
+  ) => void;
   addHome: (input: NewHomeInput) => Home | null;
   updateHome: (homeId: string, patch: HomeUpdate) => void;
   removeHome: (homeId: string) => void;
@@ -204,8 +244,16 @@ type AppData = Snapshot & {
   ) => void;
   updateBudget: (patch: Partial<BudgetSettings>) => void;
   addComparisonNote: (body: string) => void;
-  saveScenarioInputs: (inputs: BudgetInputs, propertyId?: string | null) => BudgetScenario;
-  updateScenarioInputs: (scenarioId: string, inputs: BudgetInputs) => void;
+  saveScenarioInputs: (
+    inputs: BudgetInputs,
+    propertyId?: string | null,
+    confirmed?: boolean,
+  ) => BudgetScenario;
+  updateScenarioInputs: (
+    scenarioId: string,
+    inputs: BudgetInputs,
+    confirmed?: boolean,
+  ) => void;
 };
 
 const STORAGE_KEY = "next-home-edit:data:v3";
@@ -221,10 +269,24 @@ function downAmountFor(price: number, percent: number) {
   return Math.round(((price * percent) / 100) * 100) / 100;
 }
 
+/** Zero HOA can be known (explicitly recorded) or unknown (legacy blank). */
+function hoaIsKnown(home: Home) {
+  if (
+    home.facts &&
+    Object.prototype.hasOwnProperty.call(home.facts, "hoa")
+  ) {
+    return home.facts.hoa !== null && home.facts.hoa !== undefined;
+  }
+  return home.hoa > 0;
+}
+
 function seedV2(
   legacyWishlist: WishlistItem[],
   budget: BudgetSettings,
-): Pick<Snapshot, "profile" | "wishlists" | "requirements" | "details" | "scenarios"> {
+): Pick<
+  Snapshot,
+  "profile" | "wishlists" | "requirements" | "details" | "scenarios" | "evaluations"
+> {
   const wishlist: Wishlist = {
     id: "wishlist-default",
     name: "Our Next Home",
@@ -251,6 +313,7 @@ function seedV2(
       rate: budget.rate,
       termYears: budget.term,
     },
+    confirmed: false,
     updatedAt: "",
   };
 
@@ -265,11 +328,20 @@ function seedV2(
     requirements,
     details: {},
     scenarios: [scenario],
+    evaluations: [],
   };
 }
 
 function defaultSnapshot(): Snapshot {
-  const legacy: Omit<Snapshot, "profile" | "wishlists" | "requirements" | "details" | "scenarios"> = {
+  const legacy: Omit<
+    Snapshot,
+    | "profile"
+    | "wishlists"
+    | "requirements"
+    | "details"
+    | "scenarios"
+    | "evaluations"
+  > = {
     homes: clone(DEFAULT_HOMES),
     wishlist: clone(DEFAULT_WISHLIST),
     tourNotes: clone(DEFAULT_TOUR_NOTES),
@@ -306,7 +378,7 @@ function normalizeRequirement(value: unknown): WishlistRequirement | null {
   if (typeof value.wishlistId !== "string" || typeof value.name !== "string") {
     return null;
   }
-  return {
+  const requirement: WishlistRequirement = {
     id: value.id,
     wishlistId: value.wishlistId,
     category: value.category as WishlistCategory,
@@ -325,6 +397,7 @@ function normalizeRequirement(value: unknown): WishlistRequirement | null {
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : "",
     custom: Boolean(value.custom),
   };
+  return upgradeImportedRequirement(requirement);
 }
 
 function normalizeDetails(value: unknown): PropertyDetails | null {
@@ -352,6 +425,28 @@ function normalizeScenario(value: unknown): BudgetScenario | null {
     wishlistId: typeof value.wishlistId === "string" ? value.wishlistId : null,
     propertyId: typeof value.propertyId === "string" ? value.propertyId : null,
     inputs: { ...DEFAULT_BUDGET_INPUTS, ...(isObject(value.inputs) ? value.inputs : {}) } as BudgetInputs,
+    confirmed: value.confirmed === true,
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : "",
+  };
+}
+
+function normalizeEvaluation(value: unknown): PropertyEvaluation | null {
+  if (!isObject(value) || typeof value.id !== "string") return null;
+  if (
+    typeof value.homeId !== "string" ||
+    typeof value.wishlistId !== "string" ||
+    typeof value.requirementId !== "string"
+  ) {
+    return null;
+  }
+  if (value.state !== "met" && value.state !== "not-met") return null;
+  return {
+    id: value.id,
+    homeId: value.homeId,
+    wishlistId: value.wishlistId,
+    requirementId: value.requirementId,
+    state: value.state,
+    createdAt: typeof value.createdAt === "string" ? value.createdAt : "",
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : "",
   };
 }
@@ -385,6 +480,11 @@ function localSnapshotFromParsed(parsed: Record<string, unknown>): Snapshot {
         .map(normalizeScenario)
         .filter((entry): entry is BudgetScenario => Boolean(entry))
     : [];
+  const evaluationsRaw = Array.isArray(parsed.evaluations)
+    ? parsed.evaluations
+        .map(normalizeEvaluation)
+        .filter((entry): entry is PropertyEvaluation => Boolean(entry))
+    : [];
 
   const wishlists = wishlistsRaw.length > 0 ? wishlistsRaw : seeded.wishlists;
   const activeId = wishlists.find((wishlist) => wishlist.isActive)?.id ?? wishlists[0]?.id;
@@ -415,6 +515,7 @@ function localSnapshotFromParsed(parsed: Record<string, unknown>): Snapshot {
       : requirementsFromLegacy(normalizedWishlists[0].id, legacyWishlist),
     details: Object.fromEntries(detailsEntry.map((entry) => [entry.homeId, entry])),
     scenarios: scenariosRaw.length > 0 ? scenariosRaw : seeded.scenarios,
+    evaluations: evaluationsRaw,
   };
 }
 
@@ -542,6 +643,18 @@ type ScenarioRow = {
   property_id: string | null;
   name: string;
   inputs: unknown;
+  confirmed: boolean | null;
+  updated_at: string | null;
+};
+
+type EvaluationV2Row = {
+  id: string;
+  owner_id: string;
+  home_id: string;
+  wishlist_id: string;
+  requirement_id: string;
+  state: string;
+  created_at: string | null;
   updated_at: string | null;
 };
 
@@ -768,6 +881,7 @@ function mapScenarioRow(row: ScenarioRow): BudgetScenario {
       ...DEFAULT_BUDGET_INPUTS,
       ...(isObject(row.inputs) ? row.inputs : {}),
     } as BudgetInputs,
+    confirmed: row.confirmed === true,
     updatedAt: row.updated_at ?? "",
   };
 }
@@ -780,7 +894,33 @@ function toScenarioRow(scenario: BudgetScenario, ownerId: string) {
     property_id: scenario.propertyId,
     name: scenario.name,
     inputs: scenario.inputs,
+    confirmed: scenario.confirmed,
     updated_at: scenario.updatedAt || new Date().toISOString(),
+  };
+}
+
+function mapEvaluationRow(row: EvaluationV2Row): PropertyEvaluation {
+  return {
+    id: row.id,
+    homeId: row.home_id,
+    wishlistId: row.wishlist_id,
+    requirementId: row.requirement_id,
+    state: row.state === "not-met" ? "not-met" : "met",
+    createdAt: row.created_at ?? "",
+    updatedAt: row.updated_at ?? "",
+  };
+}
+
+function toEvaluationRow(evaluation: PropertyEvaluation, ownerId: string) {
+  return {
+    id: evaluation.id,
+    owner_id: ownerId,
+    home_id: evaluation.homeId,
+    wishlist_id: evaluation.wishlistId,
+    requirement_id: evaluation.requirementId,
+    state: evaluation.state,
+    created_at: evaluation.createdAt || new Date().toISOString(),
+    updated_at: evaluation.updatedAt || new Date().toISOString(),
   };
 }
 
@@ -817,6 +957,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<Snapshot>(defaultSnapshot);
   const [status, setStatus] = useState<SyncStatus>("loading");
   const [v2Synced, setV2Synced] = useState(false);
+  const [evaluationsSynced, setEvaluationsSynced] = useState(false);
+  const [pendingWrites, setPendingWrites] = useState(0);
   const [ready, setReady] = useState(false);
   const budgetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ownerId = data.profile.id || DEFAULT_OWNER_ID;
@@ -907,12 +1049,21 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         }
 
         if (Object.keys(legacy.tourNotes).length === 0) {
-          legacy.tourNotes = clone(DEFAULT_TOUR_NOTES);
-          await client
-            .from("tour_notes")
-            .upsert(Object.values(legacy.tourNotes).map(toTourNoteRow), {
-              onConflict: "home_id",
-            });
+          // Demo notes reference demo homes. Only seed notes for homes that
+          // actually exist in this dataset, otherwise the foreign key rejects
+          // the whole batch.
+          legacy.tourNotes = Object.fromEntries(
+            Object.entries(clone(DEFAULT_TOUR_NOTES)).filter(([homeId]) =>
+              legacy.homes.some((home) => home.id === homeId),
+            ),
+          );
+          if (Object.keys(legacy.tourNotes).length > 0) {
+            await client
+              .from("tour_notes")
+              .upsert(Object.values(legacy.tourNotes).map(toTourNoteRow), {
+                onConflict: "home_id",
+              });
+          }
         }
 
         if (!budgetResult.data) {
@@ -1045,6 +1196,29 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           );
         }
 
+        // Evaluations are additive too. A missing evaluation table must not
+        // take down wishlists or property details that already sync.
+        let evaluations = next.evaluations ?? [];
+        let evaluationsReady = false;
+        try {
+          const evaluationsResult = await client
+            .from("property_evaluations")
+            .select("*")
+            .eq("owner_id", DEFAULT_OWNER_ID);
+          if (evaluationsResult.error) throw evaluationsResult.error;
+          evaluations = ((evaluationsResult.data ?? []) as EvaluationV2Row[]).map(
+            mapEvaluationRow,
+          );
+          evaluationsReady = true;
+        } catch (error) {
+          const stored = readStored();
+          if (stored) evaluations = stored.evaluations;
+          console.warn(
+            "Evaluation table unavailable — run supabase/migrations/0003_evaluations.sql to sync manual evaluations.",
+            error,
+          );
+        }
+
         if (cancelled) return;
         // Details live in their own V2 table, so merge them into the homes the
         // UI reads. Local snapshots already contain merged homes; merging again
@@ -1056,7 +1230,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           ),
         };
         setV2Synced(schemaReady);
-        setData(next);
+        setEvaluationsSynced(evaluationsReady);
+        setData({ ...next, evaluations });
         setStatus("synced");
       } catch (error) {
         if (cancelled) return;
@@ -1082,17 +1257,18 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   // V2 data when the optional V2 tables have not been created yet.
   useEffect(() => {
     if (!ready) return;
-    if (status !== "local" && v2Synced) return;
+    if (status !== "local" && v2Synced && evaluationsSynced) return;
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch {
       // Storage can be full or blocked; the in-memory state still works.
     }
-  }, [data, ready, status, v2Synced]);
+  }, [data, ready, status, v2Synced, evaluationsSynced]);
 
   const pushMutation = useCallback(
     (run: () => PromiseLike<{ error: { message: string } | null }>) => {
       if (!hasSupabaseConfig || status !== "synced") return;
+      setPendingWrites((count) => count + 1);
       void (async () => {
         try {
           const { error } = await run();
@@ -1103,6 +1279,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         } catch (error) {
           console.warn("Supabase write failed:", error);
           setStatus("local");
+        } finally {
+          setPendingWrites((count) => Math.max(0, count - 1));
         }
       })();
     },
@@ -1115,6 +1293,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       pushMutation(run);
     },
     [v2Synced, pushMutation],
+  );
+
+  const pushEvaluation = useCallback(
+    (run: () => PromiseLike<{ error: { message: string } | null }>) => {
+      if (!evaluationsSynced) return;
+      pushMutation(run);
+    },
+    [evaluationsSynced, pushMutation],
   );
 
   const addHome = useCallback(
@@ -1335,6 +1521,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           homes: current.homes.filter((entry) => entry.id !== homeId),
           tourNotes,
           details,
+          evaluations: current.evaluations.filter(
+            (evaluation) => evaluation.homeId !== homeId,
+          ),
           scenarios: current.scenarios.filter(
             (scenario) => scenario.propertyId !== homeId,
           ),
@@ -1573,6 +1762,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         requirements: current.requirements.filter(
           (requirement) => requirement.wishlistId !== wishlistId,
         ),
+        evaluations: current.evaluations.filter(
+          (evaluation) => evaluation.wishlistId !== wishlistId,
+        ),
         scenarios: current.scenarios.map((scenario) =>
           scenario.wishlistId === wishlistId
             ? { ...scenario, wishlistId: null }
@@ -1712,12 +1904,61 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         requirements: current.requirements.filter(
           (requirement) => requirement.id !== requirementId,
         ),
+        evaluations: current.evaluations.filter(
+          (evaluation) => evaluation.requirementId !== requirementId,
+        ),
       }));
       pushV2(() =>
         supabase!.from("wishlist_requirements").delete().eq("id", requirementId),
       );
     },
     [pushV2],
+  );
+
+  const setEvaluation = useCallback(
+    (
+      homeId: string,
+      wishlistId: string,
+      requirementId: string,
+      state: EvaluationState,
+    ) => {
+      const id = evaluationId(homeId, wishlistId, requirementId);
+      if (state === "unknown") {
+        setData((current) => ({
+          ...current,
+          evaluations: current.evaluations.filter((entry) => entry.id !== id),
+        }));
+        pushEvaluation(() =>
+          supabase!.from("property_evaluations").delete().eq("id", id),
+        );
+        return;
+      }
+
+      const existing = data.evaluations.find((entry) => entry.id === id);
+      const timestamp = nowIso();
+      const evaluation: PropertyEvaluation = {
+        id,
+        homeId,
+        wishlistId,
+        requirementId,
+        state,
+        createdAt: existing?.createdAt || timestamp,
+        updatedAt: timestamp,
+      };
+      setData((current) => ({
+        ...current,
+        evaluations: [
+          ...current.evaluations.filter((entry) => entry.id !== id),
+          evaluation,
+        ],
+      }));
+      pushEvaluation(() =>
+        supabase!
+          .from("property_evaluations")
+          .upsert(toEvaluationRow(evaluation, ownerId), { onConflict: "id" }),
+      );
+    },
+    [data.evaluations, ownerId, pushEvaluation],
   );
 
   const saveTourNote = useCallback(
@@ -1786,7 +2027,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   );
 
   const saveScenarioInputs = useCallback(
-    (inputs: BudgetInputs, propertyId: string | null = null) => {
+    (
+      inputs: BudgetInputs,
+      propertyId: string | null = null,
+      confirmed?: boolean,
+    ) => {
       const active = pickActiveWishlist(data.wishlists);
       const existing = data.scenarios.find((scenario) =>
         propertyId
@@ -1811,6 +2056,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         wishlistId: existing?.wishlistId ?? active?.id ?? null,
         propertyId,
         inputs,
+        confirmed: confirmed ?? existing?.confirmed ?? false,
         updatedAt: nowIso(),
       };
       setData((current) => ({
@@ -1835,7 +2081,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   );
 
   const updateScenarioInputs = useCallback(
-    (scenarioId: string, inputs: BudgetInputs) => {
+    (scenarioId: string, inputs: BudgetInputs, confirmed?: boolean) => {
       const existing = data.scenarios.find(
         (scenario) => scenario.id === scenarioId,
       );
@@ -1843,6 +2089,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       const updated: BudgetScenario = {
         ...existing,
         inputs,
+        confirmed: confirmed ?? existing.confirmed,
         updatedAt: nowIso(),
       };
       setData((current) => ({
@@ -1888,6 +2135,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         wishlistId: active?.id ?? null,
         propertyId: null,
         inputs: DEFAULT_BUDGET_INPUTS,
+        confirmed: false,
         updatedAt: "",
       };
 
@@ -1906,11 +2154,38 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
               targetMonthly: defaultScenario.inputs.targetMonthly,
             },
           );
-      const monthlyCost =
+      const budgetEstimate = budgetEstimateInfo({
+        price: home.price,
+        hoaKnown:
+          hoaIsKnown(home) ||
+          (propertyScenario?.inputs.monthlyHoa ?? 0) > 0,
+        confirmed: propertyScenario?.confirmed ?? false,
+      });
+      const rawMonthlyCost =
         home.price > 0 ? calculateBudget(inputs).totalMonthly : null;
-      const facts = factsFromHome(home, { monthlyOwnershipCost: monthlyCost });
-      const score = scoreRequirements(activeRequirements, facts);
-      return { home, facts, score, monthlyCost };
+      const monthlyCost =
+        budgetEstimate.status === "partial" ? null : rawMonthlyCost;
+      const facts = factsFromHome(home, {
+        monthlyOwnershipCost: monthlyCost,
+      });
+      const manual = manualEvaluationMap(
+        data.evaluations,
+        home.id,
+        active?.id ?? "",
+      );
+      const score = scoreRequirements(
+        activeRequirements,
+        facts,
+        DEFAULT_WEIGHTS,
+        { manual },
+      );
+      return {
+        home,
+        facts,
+        score,
+        monthlyCost: rawMonthlyCost,
+        budgetEstimate,
+      };
     });
 
     const scoredSaved = scoredHomes.filter((entry) => entry.home.saved);
@@ -1923,6 +2198,28 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           (b.score.score ?? 0) - (a.score.score ?? 0) ||
           b.score.coverage - a.score.coverage,
       );
+
+    const evaluationSummaries: EvaluationSummary[] = scoredSaved.map((entry) => {
+      const rows = buildEvaluationRows(
+        activeRequirements,
+        entry.facts,
+        data.evaluations,
+        entry.home.id,
+        active?.id ?? "",
+      );
+      const progress = evaluationProgress(rows);
+      return {
+        home: entry.home,
+        answered: progress.answered,
+        unanswered: progress.unanswered,
+        total: progress.total,
+        percent: progress.percent,
+      };
+    });
+
+    const pendingEvaluations = evaluationSummaries.filter(
+      (summary) => summary.total > 0 && summary.unanswered > 0,
+    );
 
     const homesNeedingEvaluation = scoredSaved.filter(
       (entry) =>
@@ -1958,6 +2255,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       status,
       configured: hasSupabaseConfig,
       v2Synced,
+      saving: pendingWrites > 0,
       topMatch,
       savedCount: savedHomes.length,
       upcomingTours,
@@ -1973,15 +2271,45 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       scoredHomes,
       topMatches,
       homesNeedingEvaluation,
+      evaluations: data.evaluations,
+      evaluationsSynced,
+      evaluationSummaries,
+      pendingEvaluations,
+      nextEvaluationHome: pendingEvaluations[0]?.home ?? null,
       defaultScenario,
       activeScenario: defaultScenario,
       getScoreForHome: (homeId: string) =>
         scoredHomes.find((entry) => entry.home.id === homeId)?.score ?? null,
-      getMonthlyCostForHome: (homeId: string) =>
-        scoredHomes.find((entry) => entry.home.id === homeId)?.monthlyCost ?? null,
+      getFactsForHome: (homeId: string) =>
+        scoredHomes.find((entry) => entry.home.id === homeId)?.facts ?? null,
+      getEvaluationRows: (homeId: string, wishlistId: string) => {
+        const entry = scoredHomes.find(
+          (candidate) => candidate.home.id === homeId,
+        );
+        if (!entry) return [];
+        return buildEvaluationRows(
+          requirementsFor(data.requirements, wishlistId),
+          entry.facts,
+          data.evaluations,
+          homeId,
+          wishlistId,
+        );
+      },
+      getMonthlyCostForHome: (homeId: string) => {
+        const entry = scoredHomes.find(
+          (candidate) => candidate.home.id === homeId,
+        );
+        return entry && entry.budgetEstimate.status !== "partial"
+          ? entry.monthlyCost
+          : null;
+      },
+      getBudgetEstimateForHome: (homeId: string) =>
+        scoredHomes.find((entry) => entry.home.id === homeId)?.budgetEstimate ??
+        null,
       getBudgetScenarioForProperty: (homeId: string) =>
         data.scenarios.find((scenario) => scenario.propertyId === homeId) ??
         null,
+      setEvaluation,
       addHome,
       updateHome,
       removeHome,
@@ -2010,6 +2338,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     ready,
     status,
     v2Synced,
+    evaluationsSynced,
+    pendingWrites,
+    setEvaluation,
     addHome,
     updateHome,
     removeHome,
