@@ -58,6 +58,23 @@ Built with Next.js (App Router), React, Tailwind CSS and Supabase.
 - Tables: `homes`, `wishlist_items`, `tour_notes`, `budget_settings`,
   `comparison_notes`.
 
+## Adding a home
+
+Tap the **+** button on the Dashboard, then start typing a street address. As
+you type, the app asks its own `/api/address-search` route for suggestions and
+shows the closest matches. Pick one to fill in the street and city automatically,
+or keep typing and submit the address manually if it is not listed.
+
+Price, beds, baths and square footage are optional. New homes are saved to the
+shortlist by default and appear in Compare Homes and the rest of the app. Homes
+without a price or specs show friendly placeholders (`Price TBD`, `—`, `New`)
+until you fill them in later.
+
+Address suggestions come from [Photon](https://photon.komoot.io/), an
+OpenStreetMap-based geocoder. It is free and does not need an API key. Results
+are cached in memory for 10 minutes by the route handler; if the service is
+unreachable, manual address entry still works.
+
 ## Working from another laptop
 
 ```bash
@@ -98,8 +115,10 @@ app/
     homes.ts                Home type, formatting, demo homes
     defaults.ts             starter data
     types.ts                persisted record types
+  api/
+    address-search/         Photon-backed address suggestions
   components/
     dashboard.tsx
-    screens/                all eight screens
+    screens/                all eight screens + Add Home
 supabase/migrations/        SQL schema + policies
 ```

@@ -124,7 +124,10 @@ export function MoreScreen({
             {[
               { value: String(savedCount), label: "Saved homes" },
               { value: String(upcomingTours), label: "Tours" },
-              { value: `${topMatch.match}%`, label: "Top match" },
+              {
+                value: topMatch.match > 0 ? `${topMatch.match}%` : "New",
+                label: "Top match",
+              },
             ].map((stat) => (
               <div key={stat.label}>
                 <p className="font-serif text-[24px] leading-none">

@@ -37,6 +37,15 @@ type Snapshot = {
 
 type SyncStatus = "loading" | "synced" | "local";
 
+export type NewHomeInput = {
+  address: string;
+  city: string;
+  price: number;
+  beds: number;
+  baths: number;
+  sqft: number;
+};
+
 type AppData = Snapshot & {
   ready: boolean;
   status: SyncStatus;
@@ -49,6 +58,7 @@ type AppData = Snapshot & {
   wishlistTotal: number;
   mustDone: number;
   mustTotal: number;
+  addHome: (input: NewHomeInput) => Home | null;
   toggleSaved: (homeId: string) => void;
   setTourRequested: (homeId: string, value?: boolean) => void;
   toggleWishlistItem: (itemId: string) => void;
@@ -456,6 +466,54 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [status],
   );
 
+  const addHome = useCallback(
+    (input: NewHomeInput): Home | null => {
+      const address = input.address.trim();
+      if (!address) return null;
+      const duplicate = data.homes.some(
+        (home) => home.address.trim().toLowerCase() === address.toLowerCase(),
+      );
+      if (duplicate) return null;
+
+      const home: Home = {
+        id: newId(),
+        address,
+        city: input.city.trim(),
+        price: Number.isFinite(input.price) ? Math.max(0, input.price) : 0,
+        match: 0,
+        beds: Number.isFinite(input.beds) ? Math.max(0, input.beds) : 0,
+        baths: Number.isFinite(input.baths) ? Math.max(0, input.baths) : 0,
+        sqft: Number.isFinite(input.sqft) ? Math.max(0, input.sqft) : 0,
+        lot: "",
+        garage: "",
+        pool: false,
+        gated: false,
+        hoa: 0,
+        yearBuilt: 0,
+        type: "Single family",
+        daysOnMarket: 0,
+        imageFilter: "none",
+        description: "",
+        features: [],
+        saved: true,
+        tourRequested: false,
+      };
+
+      setData((current) => ({
+        ...current,
+        homes: [...current.homes, home],
+      }));
+      pushMutation(() =>
+        supabase!
+          .from("homes")
+          .insert(toHomeRow(home, data.homes.length)),
+      );
+
+      return home;
+    },
+    [data.homes, pushMutation],
+  );
+
   const toggleSaved = useCallback(
     (homeId: string) => {
       const home = data.homes.find((entry) => entry.id === homeId);
@@ -634,6 +692,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       wishlistTotal: data.wishlist.length,
       mustDone: mustItems.filter((item) => item.done).length,
       mustTotal: mustItems.length,
+      addHome,
       toggleSaved,
       setTourRequested,
       toggleWishlistItem,
@@ -646,6 +705,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     data,
     ready,
     status,
+    addHome,
     toggleSaved,
     setTourRequested,
     toggleWishlistItem,

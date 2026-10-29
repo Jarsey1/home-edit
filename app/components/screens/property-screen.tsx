@@ -1,7 +1,7 @@
 "use client";
 
 import { useAppData } from "../../lib/app-data";
-import { formatPrice, type Home } from "../../lib/homes";
+import { formatPriceOrPending, type Home } from "../../lib/homes";
 import { HouseIllustration } from "../house-illustration";
 import { BackButton } from "../back-button";
 import {
@@ -29,17 +29,26 @@ export function PropertyScreen({
   const scheduled = home.tourRequested;
 
   const specs = [
-    { value: home.beds, label: "Beds" },
-    { value: home.baths, label: "Baths" },
-    { value: home.sqft.toLocaleString("en-US"), label: "Sq ft" },
-    { value: home.lot, label: "Lot" },
+    { value: home.beds > 0 ? home.beds : "—", label: "Beds" },
+    { value: home.baths > 0 ? home.baths : "—", label: "Baths" },
+    {
+      value: home.sqft > 0 ? home.sqft.toLocaleString("en-US") : "—",
+      label: "Sq ft",
+    },
+    { value: home.lot || "—", label: "Lot" },
   ];
 
   const details = [
-    { label: "Property type", value: home.type },
-    { label: "Year built", value: String(home.yearBuilt) },
-    { label: "HOA", value: `$${home.hoa}/mo` },
-    { label: "Days on market", value: `${home.daysOnMarket} days` },
+    { label: "Property type", value: home.type || "—" },
+    {
+      label: "Year built",
+      value: home.yearBuilt > 0 ? String(home.yearBuilt) : "—",
+    },
+    { label: "HOA", value: home.hoa > 0 ? `$${home.hoa}/mo` : "—" },
+    {
+      label: "Days on market",
+      value: home.daysOnMarket > 0 ? `${home.daysOnMarket} days` : "—",
+    },
   ];
 
   return (
@@ -84,7 +93,7 @@ export function PropertyScreen({
         <div className="absolute inset-x-5 bottom-7 flex items-end justify-between gap-3">
           <div className="flex flex-wrap gap-1.5">
             <span className="rounded-full bg-cream/95 px-2.5 py-1.5 text-[9px] font-medium uppercase tracking-[0.1em] text-olive backdrop-blur">
-              {home.match}% Match
+              {home.match > 0 ? `${home.match}% Match` : "New"}
             </span>
             <span className="rounded-full border border-cream/40 bg-ink/25 px-2.5 py-1.5 text-[9px] uppercase tracking-[0.1em] text-cream backdrop-blur">
               For Sale
@@ -96,7 +105,7 @@ export function PropertyScreen({
             )}
           </div>
           <span className="shrink-0 rounded-full border border-cream/35 bg-ink/25 px-2.5 py-1.5 text-[9px] tracking-[0.08em] text-cream backdrop-blur">
-            1 / 24
+            {home.match > 0 ? "1 / 24" : "New listing"}
           </span>
         </div>
       </div>
@@ -109,11 +118,11 @@ export function PropertyScreen({
             </h1>
             <p className="mt-2 flex items-center gap-1 text-[10px] uppercase tracking-[0.1em] text-muted">
               <MapPinIcon className="h-3.5 w-3.5 text-olive/70" />
-              {home.city}
+              {home.city || "City to confirm"}
             </p>
           </div>
           <p className="shrink-0 pt-1 font-serif text-[22px] leading-tight text-ink">
-            {formatPrice(home.price)}
+            {formatPriceOrPending(home.price)}
           </p>
         </div>
 
@@ -139,20 +148,23 @@ export function PropertyScreen({
         <section className="mt-6">
           <h2 className="font-serif text-[19px] text-ink">About this home</h2>
           <p className="mt-2 text-[12px] leading-[1.7] text-muted">
-            {home.description}
+            {home.description ||
+              "No description yet. Add details from the listing, or capture your impressions in Tour Notes after you visit."}
           </p>
         </section>
 
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {home.features.map((feature) => (
-            <span
-              key={feature}
-              className="rounded-full border border-line bg-parchment/70 px-2.5 py-1 text-[9px] uppercase tracking-[0.1em] text-muted"
-            >
-              {feature}
-            </span>
-          ))}
-        </div>
+        {home.features.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            {home.features.map((feature) => (
+              <span
+                key={feature}
+                className="rounded-full border border-line bg-parchment/70 px-2.5 py-1 text-[9px] uppercase tracking-[0.1em] text-muted"
+              >
+                {feature}
+              </span>
+            ))}
+          </div>
+        )}
 
         <div className="mt-6 space-y-2.5">
           <button

@@ -111,6 +111,11 @@ export function formatPrice(value: number) {
   }).format(value);
 }
 
+/** New homes can be added before a price is known. */
+export function formatPriceOrPending(value: number) {
+  return value > 0 ? formatPrice(value) : "Price TBD";
+}
+
 export function formatPriceShort(value: number) {
   if (value >= 1_000_000) {
     const millions = value / 1_000_000;

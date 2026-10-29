@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { BottomNav, type TabId } from "./components/bottom-nav";
 import { Dashboard } from "./components/dashboard";
+import { AddHomeScreen } from "./components/screens/add-home-screen";
 import { BudgetScreen } from "./components/screens/budget-screen";
 import { CompareScreen } from "./components/screens/compare-screen";
 import { MoreScreen } from "./components/screens/more-screen";
@@ -12,18 +13,21 @@ import { TourNotesScreen } from "./components/screens/tour-notes-screen";
 import { WishlistScreen } from "./components/screens/wishlist-screen";
 import { useAppData } from "./lib/app-data";
 
-type OverlayType = "property" | "tour" | "neighborhood";
+type Overlay =
+  | { type: "property" | "tour" | "neighborhood"; homeId: string }
+  | { type: "add-home" };
 
-type Overlay = { type: OverlayType; homeId: string };
+type OverlayType = Exclude<Overlay["type"], "add-home">;
 
 export default function HomeApp() {
   const { homes, topMatch } = useAppData();
   const [tab, setTab] = useState<TabId>("home");
   const [overlays, setOverlays] = useState<Overlay[]>([]);
   const overlay = overlays[overlays.length - 1] ?? null;
-  const overlayHome = overlay
-    ? (homes.find((home) => home.id === overlay.homeId) ?? topMatch)
-    : null;
+  const overlayHome =
+    overlay && "homeId" in overlay
+      ? (homes.find((home) => home.id === overlay.homeId) ?? topMatch)
+      : null;
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -48,29 +52,37 @@ export default function HomeApp() {
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-cream sm:my-7 sm:min-h-[calc(100dvh-3.5rem)] sm:rounded-[40px] sm:border sm:border-line sm:shadow-[0_40px_90px_-35px_rgba(53,48,38,0.45)]">
-      {overlay && overlayHome ? (
+      {overlay ? (
         <>
-          {overlay.type === "property" && (
-            <PropertyScreen
-              home={overlayHome}
-              onBack={goBack}
-              onOpenTour={() => pushOverlay("tour", overlay.homeId)}
-              onOpenNeighborhood={() =>
-                pushOverlay("neighborhood", overlay.homeId)
-              }
-            />
+          {overlay.type === "add-home" && (
+            <AddHomeScreen onBack={goBack} onAdded={openProperty} />
           )}
 
-          {overlay.type === "tour" && (
-            <TourNotesScreen
-              key={overlayHome.id}
-              home={overlayHome}
-              onBack={goBack}
-            />
-          )}
+          {"homeId" in overlay && overlayHome && (
+            <>
+              {overlay.type === "property" && (
+                <PropertyScreen
+                  home={overlayHome}
+                  onBack={goBack}
+                  onOpenTour={() => pushOverlay("tour", overlay.homeId)}
+                  onOpenNeighborhood={() =>
+                    pushOverlay("neighborhood", overlay.homeId)
+                  }
+                />
+              )}
 
-          {overlay.type === "neighborhood" && (
-            <NeighborhoodScreen home={overlayHome} onBack={goBack} />
+              {overlay.type === "tour" && (
+                <TourNotesScreen
+                  key={overlayHome.id}
+                  home={overlayHome}
+                  onBack={goBack}
+                />
+              )}
+
+              {overlay.type === "neighborhood" && (
+                <NeighborhoodScreen home={overlayHome} onBack={goBack} />
+              )}
+            </>
           )}
         </>
       ) : (
@@ -79,6 +91,7 @@ export default function HomeApp() {
             <Dashboard
               onOpenProperty={openProperty}
               onBrowseHomes={() => changeTab("homes")}
+              onAddHome={() => setOverlays([{ type: "add-home" }])}
             />
           )}
 

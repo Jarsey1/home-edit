@@ -1,16 +1,23 @@
 "use client";
 
 import { useAppData } from "../lib/app-data";
-import { formatPrice } from "../lib/homes";
+import { formatPriceOrPending } from "../lib/homes";
 import { HouseIllustration } from "./house-illustration";
-import { ArrowUpRightIcon, HeartIcon, SearchIcon } from "./icons";
+import {
+  ArrowUpRightIcon,
+  HeartIcon,
+  PlusIcon,
+  SearchIcon,
+} from "./icons";
 
 export function Dashboard({
   onOpenProperty,
   onBrowseHomes,
+  onAddHome,
 }: {
   onOpenProperty: (homeId: string) => void;
   onBrowseHomes: () => void;
+  onAddHome: () => void;
 }) {
   const {
     topMatch: home,
@@ -34,7 +41,7 @@ export function Dashboard({
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="flex items-start justify-between px-6 pt-9">
+      <header className="flex items-start justify-between gap-3 px-6 pt-9">
         <div>
           <h1 className="font-serif text-[36px] leading-[1.02] tracking-[-0.02em] text-ink">
             The Next
@@ -46,14 +53,26 @@ export function Dashboard({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={onBrowseHomes}
-          aria-label="Browse homes"
-          className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-parchment/70 text-olive transition-colors hover:border-olive/30 hover:bg-parchment focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40"
-        >
-          <SearchIcon className="h-[19px] w-[19px]" />
-        </button>
+        <div className="mt-1 flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={onAddHome}
+            aria-label="Add a home"
+            className="flex h-11 items-center justify-center gap-1.5 rounded-full bg-olive px-3.5 text-[12px] font-medium text-cream shadow-sm transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
+          >
+            <PlusIcon className="h-4 w-4" />
+            Add Home
+          </button>
+
+          <button
+            type="button"
+            onClick={onBrowseHomes}
+            aria-label="Browse homes"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-parchment/70 text-olive transition-colors hover:border-olive/30 hover:bg-parchment focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40"
+          >
+            <SearchIcon className="h-[19px] w-[19px]" />
+          </button>
+        </div>
       </header>
 
       <section className="mt-7 px-6">
@@ -125,7 +144,7 @@ export function Dashboard({
 
             <span className="pointer-events-none absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-cream/95 px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-olive shadow-sm backdrop-blur">
               <span className="h-1.5 w-1.5 rounded-full bg-olive" />
-              {home.match}% Match
+              {home.match > 0 ? `${home.match}% Match` : "New"}
             </span>
 
             <button
@@ -154,18 +173,22 @@ export function Dashboard({
                   {home.address}
                 </h3>
                 <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-muted">
-                  {home.city}
+                  {home.city || "City to confirm"}
                 </p>
               </div>
               <p className="shrink-0 font-serif text-[21px] leading-tight text-ink">
-                {formatPrice(home.price)}
+                {formatPriceOrPending(home.price)}
               </p>
             </div>
 
             <p className="mt-4 text-[13px] text-muted">
-              {home.beds} beds <span className="px-1 text-muted/50">·</span>{" "}
-              {home.baths} baths <span className="px-1 text-muted/50">·</span>{" "}
-              {home.sqft.toLocaleString("en-US")} sq ft
+              {home.beds > 0 ? `${home.beds} beds` : "Beds —"}{" "}
+              <span className="px-1 text-muted/50">·</span>{" "}
+              {home.baths > 0 ? `${home.baths} baths` : "Baths —"}{" "}
+              <span className="px-1 text-muted/50">·</span>{" "}
+              {home.sqft > 0
+                ? `${home.sqft.toLocaleString("en-US")} sq ft`
+                : "Sq ft —"}
             </p>
 
             <div className="mt-4 flex flex-wrap items-center gap-2">

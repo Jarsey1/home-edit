@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useAppData } from "../../lib/app-data";
-import { formatPrice, type Home } from "../../lib/homes";
+import { formatPriceOrPending, type Home } from "../../lib/homes";
 import { BackButton } from "../back-button";
 import { HouseIllustration } from "../house-illustration";
 import {
@@ -74,13 +74,17 @@ export function TourNotesScreen({
               {home.address}
             </p>
             <p className="mt-1 text-[10px] text-muted">
-              {home.beds} beds <span className="px-0.5">·</span> {home.baths}{" "}
-              baths <span className="px-0.5">·</span>{" "}
-              {home.sqft.toLocaleString("en-US")} sq ft
+              {home.beds > 0 ? `${home.beds} beds` : "Beds —"}{" "}
+              <span className="px-0.5">·</span>{" "}
+              {home.baths > 0 ? `${home.baths} baths` : "Baths —"}{" "}
+              <span className="px-0.5">·</span>{" "}
+              {home.sqft > 0
+                ? `${home.sqft.toLocaleString("en-US")} sq ft`
+                : "Sq ft —"}
             </p>
           </div>
           <p className="shrink-0 font-serif text-[14px] text-ink">
-            {formatPrice(home.price)}
+            {formatPriceOrPending(home.price)}
           </p>
         </div>
 
