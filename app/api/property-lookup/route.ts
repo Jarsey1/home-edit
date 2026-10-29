@@ -177,20 +177,23 @@ export async function GET(request: Request) {
   }
 
   const cacheKey = address.toLowerCase();
-  const cached = cache.get(cacheKey);
-  if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
-    return respond(cached.result);
-  }
 
   let providerFailed = false;
 
   // The shared shortlist is the first source of truth: facts saved with a home
   // are available on every device without calling an outside service again.
+  // This runs before the short-lived lookup cache so a home saved with facts
+  // is not shadowed by a county result cached moments earlier.
   const stored = await findStoredHome(address);
   if (stored && hasCompleteFacts(stored.facts)) {
     const result: LookupResult = { found: true, details: stored.facts };
     remember(cacheKey, result);
     return respond(result);
+  }
+
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
+    return respond(cached.result);
   }
 
   // Free county public records next — no key, no subscription.

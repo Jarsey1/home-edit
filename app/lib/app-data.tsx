@@ -62,6 +62,7 @@ type AppData = Snapshot & {
   mustDone: number;
   mustTotal: number;
   addHome: (input: NewHomeInput) => Home | null;
+  removeHome: (homeId: string) => void;
   toggleSaved: (homeId: string) => void;
   setTourRequested: (homeId: string, value?: boolean) => void;
   toggleWishlistItem: (itemId: string) => void;
@@ -520,6 +521,27 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [data.homes, pushMutation],
   );
 
+  const removeHome = useCallback(
+    (homeId: string) => {
+      const home = data.homes.find((entry) => entry.id === homeId);
+      if (!home) return;
+
+      setData((current) => {
+        const tourNotes = { ...current.tourNotes };
+        delete tourNotes[homeId];
+        return {
+          ...current,
+          homes: current.homes.filter((entry) => entry.id !== homeId),
+          tourNotes,
+        };
+      });
+
+      // Tour notes cascade from the home row, so one delete cleans both.
+      pushMutation(() => supabase!.from("homes").delete().eq("id", homeId));
+    },
+    [data.homes, pushMutation],
+  );
+
   const toggleSaved = useCallback(
     (homeId: string) => {
       const home = data.homes.find((entry) => entry.id === homeId);
@@ -699,6 +721,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       mustDone: mustItems.filter((item) => item.done).length,
       mustTotal: mustItems.length,
       addHome,
+      removeHome,
       toggleSaved,
       setTourRequested,
       toggleWishlistItem,
@@ -712,6 +735,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     ready,
     status,
     addHome,
+    removeHome,
     toggleSaved,
     setTourRequested,
     toggleWishlistItem,

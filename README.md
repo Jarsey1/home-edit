@@ -115,6 +115,14 @@ shortlist first, so any home that already has facts can be filled in again from
 Supabase on any device without calling the county. County records only fill gaps
 in older or partial rows.
 
+## Removing a home
+
+On the **Homes** tab, each column has a small trash button in the top-left
+corner of its photo. Tapping it asks for confirmation, then deletes the home
+from the shared list along with its tour notes. The confirmation defaults to
+**Keep home**, so an accidental tap does not remove anything. If every home is
+removed, the tab shows an empty state with an **Add a Home** button.
+
 ## Working from another laptop
 
 ```bash

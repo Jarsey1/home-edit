@@ -96,7 +96,10 @@ export default function HomeApp() {
           )}
 
           {tab === "homes" && (
-            <CompareScreen onOpenProperty={openProperty} />
+            <CompareScreen
+              onOpenProperty={openProperty}
+              onAddHome={() => setOverlays([{ type: "add-home" }])}
+            />
           )}
 
           {tab === "wishlist" && (
