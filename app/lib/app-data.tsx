@@ -44,6 +44,8 @@ export type NewHomeInput = {
   beds: number;
   baths: number;
   sqft: number;
+  lot?: string;
+  yearBuilt?: number;
 };
 
 type AppData = Snapshot & {
@@ -475,6 +477,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       );
       if (duplicate) return null;
 
+      const yearBuilt = Number(input.yearBuilt);
       const home: Home = {
         id: newId(),
         address,
@@ -484,12 +487,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         beds: Number.isFinite(input.beds) ? Math.max(0, input.beds) : 0,
         baths: Number.isFinite(input.baths) ? Math.max(0, input.baths) : 0,
         sqft: Number.isFinite(input.sqft) ? Math.max(0, input.sqft) : 0,
-        lot: "",
+        lot: input.lot?.trim() ?? "",
         garage: "",
         pool: false,
         gated: false,
         hoa: 0,
-        yearBuilt: 0,
+        yearBuilt: Number.isFinite(yearBuilt)
+          ? Math.max(0, Math.round(yearBuilt))
+          : 0,
         type: "Single family",
         daysOnMarket: 0,
         imageFilter: "none",

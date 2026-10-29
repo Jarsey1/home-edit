@@ -10,7 +10,8 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useAppData } from "../../lib/app-data";
-import { formatPrice } from "../../lib/homes";
+import { isNearDuplicateAddress } from "../../lib/address-match";
+import { formatLotSize, formatPrice } from "../../lib/homes";
 import { findState, US_STATES } from "../../lib/us-states";
 import { BackButton } from "../back-button";
 import {
@@ -85,6 +86,8 @@ export function AddHomeScreen({
   const [beds, setBeds] = useState("");
   const [baths, setBaths] = useState("");
   const [sqft, setSqft] = useState("");
+  const [lot, setLot] = useState("");
+  const [yearBuilt, setYearBuilt] = useState("");
 
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -111,13 +114,14 @@ export function AddHomeScreen({
     );
   const showList = open && !selected && query.trim().length >= 4;
   const selectedState = findState(stateCode);
+  const nearDuplicate =
+    address.length > 0 && !duplicate
+      ? homes.find((home) => isNearDuplicateAddress(home.address, address))
+      : undefined;
   const detailMeta = lookupDetails
     ? [
         lookupDetails.propertyType,
         lookupDetails.yearBuilt ? `Built ${lookupDetails.yearBuilt}` : "",
-        lookupDetails.lotSize
-          ? `Lot ${Math.round(lookupDetails.lotSize).toLocaleString()} sq ft`
-          : "",
         lookupDetails.lastSalePrice
           ? `Last sold ${formatPrice(lookupDetails.lastSalePrice)}${
               lookupDetails.lastSaleDate
@@ -232,6 +236,8 @@ export function AddHomeScreen({
       setSqft((value) => (value === values.sqft ? "" : value));
     }
     autoFilled.current = { beds: "", baths: "", sqft: "" };
+    setLot("");
+    setYearBuilt("");
   }
 
   function applyDetails(details: PropertyDetails) {
@@ -261,6 +267,8 @@ export function AddHomeScreen({
     }
 
     autoFilled.current = next;
+    setLot(formatLotSize(details.lotSize ?? 0));
+    setYearBuilt(details.yearBuilt ? String(details.yearBuilt) : "");
   }
 
   function resetLookup() {
@@ -422,6 +430,8 @@ export function AddHomeScreen({
       beds: toNumber(beds),
       baths: toNumber(baths),
       sqft: toNumber(sqft),
+      lot,
+      yearBuilt: toNumber(yearBuilt),
     });
 
     if (!home) {
@@ -642,6 +652,13 @@ export function AddHomeScreen({
             </p>
           )}
 
+          {nearDuplicate && (
+            <p className="mt-2 text-[11px] leading-4 text-gold">
+              You already saved {nearDuplicate.address}. Check that this is a
+              different home.
+            </p>
+          )}
+
           <div className="mt-6">
             <label
               htmlFor={cityId}
@@ -707,14 +724,63 @@ export function AddHomeScreen({
                 "Property details aren't available right now. Fill them in manually or try again."}
             </p>
 
-            {lookupState === "found" && lookupDetails && detailMeta && (
-              <div className="mt-3 rounded-2xl border border-olive/20 bg-olive/[0.06] px-4 py-3">
-                <p className="text-[10.5px] leading-4 text-ink/80">
-                  {detailMeta}
-                </p>
-                <p className="mt-1 text-[10px] leading-4 text-muted">
-                  Last sale price is not the current asking price.
-                </p>
+            {lookupState === "found" && lookupDetails && (
+              <div className="mt-3 overflow-hidden rounded-2xl border border-olive/20 bg-olive/[0.06]">
+                <dl
+                  aria-label="Public-record property facts"
+                  className="grid grid-cols-4 divide-x divide-olive/15"
+                >
+                  {[
+                    {
+                      label: "Beds",
+                      value:
+                        lookupDetails.bedrooms != null
+                          ? String(lookupDetails.bedrooms)
+                          : "—",
+                    },
+                    {
+                      label: "Baths",
+                      value:
+                        lookupDetails.bathrooms != null
+                          ? String(lookupDetails.bathrooms)
+                          : "—",
+                    },
+                    {
+                      label: "Sq ft",
+                      value:
+                        lookupDetails.squareFootage != null
+                          ? Math.round(
+                              lookupDetails.squareFootage,
+                            ).toLocaleString("en-US")
+                          : "—",
+                    },
+                    {
+                      label: "Lot",
+                      value: formatLotSize(lookupDetails.lotSize ?? 0) || "—",
+                    },
+                  ].map((fact) => (
+                    <div key={fact.label} className="px-1 py-3 text-center">
+                      <dd className="font-serif text-[17px] leading-none text-ink">
+                        {fact.value}
+                      </dd>
+                      <dt className="mt-1.5 text-[8.5px] uppercase tracking-[0.1em] text-muted">
+                        {fact.label}
+                      </dt>
+                    </div>
+                  ))}
+                </dl>
+
+                <div className="border-t border-olive/15 px-4 py-2.5">
+                  {detailMeta && (
+                    <p className="text-[10px] leading-4 text-ink/80">
+                      {detailMeta}
+                    </p>
+                  )}
+                  <p className="mt-1 text-[10px] leading-4 text-muted">
+                    From public records — confirm before saving. The last sale
+                    price is not the current asking price.
+                  </p>
+                </div>
               </div>
             )}
 

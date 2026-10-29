@@ -1,3 +1,5 @@
+import { addressesMatch } from "../../lib/address-match";
+
 type RentCastProperty = {
   formattedAddress?: string;
   bedrooms?: number;
@@ -120,6 +122,20 @@ export async function GET(request: Request) {
     const property = Array.isArray(payload) ? payload[0] : payload;
 
     if (!property) {
+      const result: LookupResult = { found: false };
+      remember(cacheKey, result);
+      return respond(result);
+    }
+
+    // RentCast returns the closest match, which can be a neighbouring address.
+    // Never prefill facts from a property that is not the address requested.
+    if (
+      property.formattedAddress &&
+      !addressesMatch(address, property.formattedAddress)
+    ) {
+      console.warn(
+        `Property lookup mismatch: asked for "${address}", got "${property.formattedAddress}"`,
+      );
       const result: LookupResult = { found: false };
       remember(cacheKey, result);
       return respond(result);

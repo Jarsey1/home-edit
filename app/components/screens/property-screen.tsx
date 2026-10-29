@@ -126,23 +126,28 @@ export function PropertyScreen({
           </p>
         </div>
 
-        <div className="mt-5 grid grid-cols-4 rounded-2xl border border-line bg-white/50 py-3">
-          {specs.map((spec, index) => (
-            <div
-              key={spec.label}
-              className={[
-                "px-2 text-center",
-                index > 0 ? "border-l border-line/70" : "",
-              ].join(" ")}
-            >
-              <p className="font-serif text-[19px] leading-none text-ink">
-                {spec.value}
-              </p>
-              <p className="mt-1.5 text-[9px] uppercase tracking-[0.12em] text-muted">
-                {spec.label}
-              </p>
-            </div>
-          ))}
+        <div className="mt-5">
+          <p className="text-[9px] font-medium uppercase tracking-[0.16em] text-muted">
+            Property facts
+          </p>
+          <div className="mt-2 grid grid-cols-4 rounded-2xl border border-line bg-white/50 py-3">
+            {specs.map((spec, index) => (
+              <div
+                key={spec.label}
+                className={[
+                  "px-2 text-center",
+                  index > 0 ? "border-l border-line/70" : "",
+                ].join(" ")}
+              >
+                <p className="font-serif text-[19px] leading-none text-ink">
+                  {spec.value}
+                </p>
+                <p className="mt-1.5 text-[9px] uppercase tracking-[0.12em] text-muted">
+                  {spec.label}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
 
         <section className="mt-6">

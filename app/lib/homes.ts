@@ -116,6 +116,16 @@ export function formatPriceOrPending(value: number) {
   return value > 0 ? formatPrice(value) : "Price TBD";
 }
 
+/** Public records give lot size in square feet; show acres for normal lots. */
+export function formatLotSize(squareFeet: number) {
+  if (!Number.isFinite(squareFeet) || squareFeet <= 0) return "";
+  const acres = squareFeet / 43_560;
+  if (acres < 0.1) {
+    return `${Math.round(squareFeet).toLocaleString("en-US")} sq ft`;
+  }
+  return `${acres.toFixed(acres >= 1 ? 1 : 2)} ac`;
+}
+
 export function formatPriceShort(value: number) {
   if (value >= 1_000_000) {
     const millions = value / 1_000_000;
