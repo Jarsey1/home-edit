@@ -162,6 +162,9 @@ export default function HomeApp() {
               }
               onOpenWishlist={() => changeTab("wishlist")}
               onEvaluate={openPropertyEvaluation}
+              onEditProperty={(homeId) =>
+                setOverlays([{ type: "edit-home", homeId }])
+              }
               onAddHome={() => setOverlays([{ type: "add-home" }])}
             />
           )}

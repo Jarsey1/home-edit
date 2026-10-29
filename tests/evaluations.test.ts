@@ -92,6 +92,36 @@ describe("guided evaluations", () => {
     });
   });
 
+  it("includes draft requirements for the missing-information checklist", () => {
+    const draft: WishlistRequirement = {
+      ...requirements[0],
+      id: "draft-beds",
+      configured: false,
+    };
+    const configuredOnly = buildEvaluationRows(
+      [draft, ...requirements.slice(1)],
+      facts,
+      [],
+      "home-1",
+      "w1",
+    );
+    expect(configuredOnly.some((row) => row.requirement.id === "draft-beds")).toBe(
+      false,
+    );
+
+    const checklist = buildEvaluationRows(
+      [draft, ...requirements.slice(1)],
+      facts,
+      [],
+      "home-1",
+      "w1",
+      { includeUnconfigured: true },
+    );
+    const draftRow = checklist.find((row) => row.requirement.id === "draft-beds");
+    expect(draftRow?.requirement.configured).toBe(false);
+    expect(draftRow?.resolved).toBe("met");
+  });
+
   it("uses a manual answer when the property fact is unknown", () => {
     const rows = buildEvaluationRows(
       requirements,

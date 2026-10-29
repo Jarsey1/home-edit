@@ -26,7 +26,15 @@ import {
   translateWishlistName,
   useI18n,
 } from "../../lib/i18n";
+import {
+  requirementDisplayStatus,
+  matchStatus,
+  type MatchStatus,
+  type RequirementDisplayStatus,
+} from "../../lib/match-status";
 import { buildComparisonSummary, type ScoreResult } from "../../lib/scoring";
+import type { EvaluationRow } from "../../lib/evaluations";
+import type { WishlistRequirement } from "../../lib/v2-types";
 import { PropertyPhoto } from "../property-photo";
 import { Sheet } from "../sheet";
 import {
@@ -87,6 +95,100 @@ function statusTone(score: ScoreResult) {
   return "text-olive";
 }
 
+function matchStatusKey(status: MatchStatus) {
+  switch (status) {
+    case "not-ready":
+      return "matchStatus.notReady" as const;
+    case "disqualified":
+      return "matchStatus.disqualified" as const;
+    case "scored":
+      return "matchStatus.scored" as const;
+    default:
+      return "matchStatus.partial" as const;
+  }
+}
+
+function matchStatusStyle(status: MatchStatus) {
+  if (status === "scored") return "bg-olive/10 text-olive";
+  if (status === "disqualified") return "bg-clay/10 text-clay";
+  if (status === "not-ready") return "bg-gold/10 text-[#6b5535]";
+  return "bg-parchment text-muted";
+}
+
+function requirementStatusKey(status: RequirementDisplayStatus) {
+  switch (status) {
+    case "met":
+      return "compare.statusMet" as const;
+    case "not-met":
+      return "compare.statusNotMet" as const;
+    case "incomplete":
+      return "compare.statusIncomplete" as const;
+    default:
+      return "compare.statusUnknown" as const;
+  }
+}
+
+function requirementStatusStyle(status: RequirementDisplayStatus) {
+  if (status === "met") return "bg-olive/10 text-olive";
+  if (status === "not-met") return "bg-clay/10 text-clay";
+  if (status === "incomplete") return "bg-gold/10 text-[#6b5535]";
+  return "bg-parchment text-muted";
+}
+
+function requiredCondition(
+  requirement: WishlistRequirement,
+  locale: "en" | "es",
+  t: ReturnType<typeof useI18n>["t"],
+) {
+  const value = requirement.expectedValue;
+  if (requirement.type === "yes") {
+    return value === true ? t("common.yes") : t("common.no");
+  }
+  if (requirement.type === "range" && value && typeof value === "object") {
+    const range = value as { min?: number; max?: number };
+    return `${range.min ?? "?"} – ${range.max ?? "?"}`;
+  }
+  if (typeof value === "number") {
+    const currency =
+      requirement.featureKey === "price" ||
+      requirement.featureKey === "monthlyOwnershipCost" ||
+      requirement.featureKey === "hoa";
+    const formatted = currency ? formatPrice(value, locale) : String(value);
+    if (requirement.type === "min") return `≥ ${formatted}`;
+    if (requirement.type === "max") return `≤ ${formatted}`;
+    return formatted;
+  }
+  if (value && typeof value === "object" && "values" in value) {
+    return (value as { values: string[] }).values.join(", ");
+  }
+  return value === null || value === "" ? "—" : String(value);
+}
+
+function factValueLabel(
+  value: unknown,
+  featureKey: string,
+  locale: "en" | "es",
+  t: ReturnType<typeof useI18n>["t"],
+) {
+  if (value === null || value === undefined || value === "") {
+    return t("compare.notRecorded");
+  }
+  if (typeof value === "boolean") {
+    return value ? t("common.yes") : t("common.no");
+  }
+  if (typeof value === "number") {
+    if (
+      featureKey === "price" ||
+      featureKey === "monthlyOwnershipCost" ||
+      featureKey === "hoa"
+    ) {
+      return formatPrice(value, locale);
+    }
+    return String(value);
+  }
+  return String(value);
+}
+
 function BooleanCell({ value }: { value: unknown }) {
   if (value === true) {
     return <CheckIcon className="mx-auto h-4 w-4 text-olive" />;
@@ -107,12 +209,14 @@ export function CompareScreen({
   onOpenBudget,
   onOpenWishlist,
   onEvaluate,
+  onEditProperty,
   onAddHome,
 }: {
   onOpenProperty: (homeId: string) => void;
   onOpenBudget: (homeId: string) => void;
   onOpenWishlist: () => void;
   onEvaluate: (homeId: string) => void;
+  onEditProperty: (homeId: string) => void;
   onAddHome: () => void;
 }) {
   const {
@@ -123,6 +227,7 @@ export function CompareScreen({
     addComparisonNote,
     removeHome,
     scoredHomes,
+    getEvaluationRows,
   } = useAppData();
   const { t, locale } = useI18n();
   const [selectedIds, setSelectedIds] = useState<string[]>(() =>
@@ -133,6 +238,7 @@ export function CompareScreen({
   const [noteDraft, setNoteDraft] = useState("");
   const [notesOpen, setNotesOpen] = useState(false);
   const [mustHavesFor, setMustHavesFor] = useState<string | null>(null);
+  const [missingInfoFor, setMissingInfoFor] = useState<string | null>(null);
   const [pendingRemove, setPendingRemove] = useState<{
     id: string;
     address: string;
@@ -175,6 +281,11 @@ export function CompareScreen({
     [selected, scoredHomes],
   );
 
+  const missingInfoRows = useMemo<EvaluationRow[]>(() => {
+    if (!missingInfoFor || !activeWishlist) return [];
+    return getEvaluationRows(missingInfoFor, activeWishlist.id, true);
+  }, [activeWishlist, getEvaluationRows, missingInfoFor]);
+
   const summary = useMemo(
     () =>
       buildComparisonSummary(
@@ -197,6 +308,10 @@ export function CompareScreen({
       requirement.configured !== false && requirement.importance !== "ignore",
   );
   const hasScoredRequirements = scoredRequirements.length > 0;
+  const draftRequirements = activeRequirements.filter(
+    (requirement) =>
+      requirement.configured === false && requirement.importance !== "ignore",
+  ).length;
   const hasMustHaves = scoredRequirements.some(
     (requirement) => requirement.importance === "must",
   );
@@ -393,6 +508,19 @@ export function CompareScreen({
         ),
     },
     {
+      label: t("compare.matchStatus"),
+      render: (entry) => {
+        const status = matchStatus(entry.score, hasScoredRequirements);
+        return (
+          <span
+            className={`rounded-full px-2 py-0.5 text-[8.5px] uppercase tracking-[0.08em] ${matchStatusStyle(status)}`}
+          >
+            {t(matchStatusKey(status))}
+          </span>
+        );
+      },
+    },
+    {
       label: t("compare.estimated"),
       render: (entry) => (
         <span className={`text-[9.5px] leading-4 ${statusTone(entry.score)}`}>
@@ -584,11 +712,20 @@ export function CompareScreen({
       {!hasScoredRequirements && (
         <div className="mx-6 mt-4 rounded-2xl border border-gold/30 bg-gold/10 px-4 py-3.5">
           <p className="text-[12px] font-medium text-ink">
-            {t("compare.noConfiguredTitle")}
+            {draftRequirements > 0
+              ? t("compare.draftTitle")
+              : t("compare.noConfiguredTitle")}
           </p>
           <p className="mt-1 text-[10.5px] leading-4 text-muted">
-            {t("compare.noConfiguredBody")}
+            {draftRequirements > 0
+              ? t("compare.draftBody")
+              : t("compare.noConfiguredBody")}
           </p>
+          {draftRequirements > 0 && (
+            <p className="mt-1.5 inline-flex rounded-full bg-white/70 px-2.5 py-1 text-[9.5px] font-medium text-[#6b5535]">
+              {t("compare.draftCount", { count: draftRequirements })}
+            </p>
+          )}
           <button
             type="button"
             onClick={onOpenWishlist}
@@ -788,8 +925,23 @@ export function CompareScreen({
                     {t("compare.disqualified", { address: candidate.address })}
                   </SummaryLine>
                 ))}
+                {summary.insufficient.slice(0, 3).map((candidate) => (
+                  <SummaryLine
+                    key={`insufficient-${candidate.id}`}
+                    tone="muted"
+                    onClick={() => setMissingInfoFor(candidate.id)}
+                  >
+                    {t("compare.insufficientInfo", {
+                      address: candidate.address,
+                    })}
+                  </SummaryLine>
+                ))}
                 {summary.missingInformation.slice(0, 3).map((candidate) => (
-                  <SummaryLine key={`info-${candidate.id}`} tone="muted">
+                  <SummaryLine
+                    key={`info-${candidate.id}`}
+                    tone="muted"
+                    onClick={() => setMissingInfoFor(candidate.id)}
+                  >
                     {t("compare.missingInfo", {
                       address: candidate.address,
                       percent: Math.round(candidate.score.coverage),
@@ -798,6 +950,7 @@ export function CompareScreen({
                 ))}
                 {summary.highestScore === null &&
                   summary.disqualified.length === 0 &&
+                  summary.insufficient.length === 0 &&
                   summary.missingInformation.length === 0 && (
                     <SummaryLine tone="muted">
                       {t("compare.noEligible")}
@@ -927,7 +1080,7 @@ export function CompareScreen({
                       </p>
                     </button>
 
-                    <div className="flex items-center justify-center gap-1.5 pb-3">
+                    <div className="flex items-center justify-center gap-1.5 pb-1">
                       <span className="text-[8.5px] text-muted">
                         {t("compare.coverageShort", {
                           percent: Math.round(entry.score.coverage),
@@ -949,6 +1102,18 @@ export function CompareScreen({
                         <TrashIcon className="h-3.5 w-3.5" />
                       </button>
                     </div>
+                    {(entry.score.score === null ||
+                      entry.score.mustUnknown.length > 0 ||
+                      entry.score.coverage < 100 ||
+                      entry.score.dealbreakersUnknown.length > 0) && (
+                      <button
+                        type="button"
+                        onClick={() => setMissingInfoFor(entry.home.id)}
+                        className="mb-3 w-full rounded-full border border-olive/25 bg-olive/[0.06] px-1.5 py-1.5 text-[8px] font-medium leading-3 text-olive"
+                      >
+                        {t("compare.viewMissing")}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -978,6 +1143,26 @@ export function CompareScreen({
         onClose={() => setMustHavesFor(null)}
         onEvaluate={(homeId) => {
           setMustHavesFor(null);
+          onEvaluate(homeId);
+        }}
+      />
+
+      <MissingInfoSheet
+        open={Boolean(missingInfoFor)}
+        entry={entries.find((entry) => entry.home.id === missingInfoFor) ?? null}
+        rows={missingInfoRows}
+        hasScoreableRequirements={hasScoredRequirements}
+        onClose={() => setMissingInfoFor(null)}
+        onOpenWishlist={() => {
+          setMissingInfoFor(null);
+          onOpenWishlist();
+        }}
+        onEditProperty={(homeId) => {
+          setMissingInfoFor(null);
+          onEditProperty(homeId);
+        }}
+        onEvaluate={(homeId) => {
+          setMissingInfoFor(null);
           onEvaluate(homeId);
         }}
       />
@@ -1037,6 +1222,165 @@ function SummaryLine({
         <div className="flex items-start gap-2.5">{content}</div>
       )}
     </li>
+  );
+}
+
+function MissingInfoSheet({
+  open,
+  entry,
+  rows,
+  hasScoreableRequirements,
+  onClose,
+  onOpenWishlist,
+  onEditProperty,
+  onEvaluate,
+}: {
+  open: boolean;
+  entry: CompareEntry | null;
+  rows: EvaluationRow[];
+  hasScoreableRequirements: boolean;
+  onClose: () => void;
+  onOpenWishlist: () => void;
+  onEditProperty: (homeId: string) => void;
+  onEvaluate: (homeId: string) => void;
+}) {
+  const { t, locale } = useI18n();
+  if (!entry) return null;
+
+  const status = matchStatus(entry.score, hasScoreableRequirements);
+
+  return (
+    <Sheet
+      open={open}
+      title={t("compare.missingInformationTitle", {
+        address: entry.home.address,
+      })}
+      onClose={onClose}
+      footer={
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => onEditProperty(entry.home.id)}
+            className="min-h-11 flex-1 rounded-full border border-line bg-white/70 px-3 text-[11px] font-medium text-ink"
+          >
+            {t("compare.editProperty")}
+          </button>
+          <button
+            type="button"
+            onClick={() => onEvaluate(entry.home.id)}
+            className="min-h-11 flex-1 rounded-full bg-olive px-3 text-[11px] font-medium text-cream"
+          >
+            {t("compare.evaluateHome")}
+          </button>
+        </div>
+      }
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className={`rounded-full px-2.5 py-1 text-[8.5px] uppercase tracking-[0.08em] ${matchStatusStyle(status)}`}
+        >
+          {t(matchStatusKey(status))}
+        </span>
+        <span className="text-[10px] tabular-nums text-muted">
+          {t("compare.coverageShort", {
+            percent: Math.round(entry.score.coverage),
+          })}
+        </span>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="mt-4 rounded-2xl border border-line bg-parchment/60 px-4 py-4">
+          <p className="text-[12px] font-medium text-ink">
+            {t("compare.noRequirementsTitle")}
+          </p>
+          <p className="mt-1 text-[10.5px] leading-4 text-muted">
+            {t("compare.noRequirementsBody")}
+          </p>
+        </div>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {rows.map((row) => {
+            const configured = row.requirement.configured !== false;
+            const displayStatus = requirementDisplayStatus({
+              configured,
+              resolved: row.resolved,
+            });
+            return (
+              <li
+                key={row.requirement.id}
+                className="rounded-2xl border border-line/80 bg-white/60 px-3.5 py-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 flex-1 text-[11.5px] font-medium leading-4 text-ink">
+                    {translateRequirementName(
+                      row.requirement.name,
+                      locale,
+                      Boolean(row.requirement.custom),
+                    )}
+                  </p>
+                  <span
+                    className={`max-w-[58%] shrink-0 whitespace-normal rounded-full px-2 py-0.5 text-right text-[8px] uppercase leading-[1.35] tracking-[0.06em] ${requirementStatusStyle(displayStatus)}`}
+                  >
+                    {t(requirementStatusKey(displayStatus))}
+                  </span>
+                </div>
+
+                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+                  <div>
+                    <dt className="text-[8.5px] uppercase tracking-[0.1em] text-muted">
+                      {t("compare.requiredCondition")}
+                    </dt>
+                    <dd className="mt-0.5 text-[10.5px] leading-4 text-ink">
+                      {requiredCondition(row.requirement, locale, t)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[8.5px] uppercase tracking-[0.1em] text-muted">
+                      {t("compare.knownValue")}
+                    </dt>
+                    <dd className="mt-0.5 text-[10.5px] leading-4 text-ink">
+                      {factValueLabel(
+                        row.actual,
+                        row.requirement.featureKey,
+                        locale,
+                        t,
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+
+                <div className="mt-2 flex items-center justify-between gap-2 border-t border-line/60 pt-2">
+                  <p className="min-w-0 text-[9.5px] leading-4 text-muted">
+                    {!configured
+                      ? t("compare.actionConfigure")
+                      : row.resolved === "unknown"
+                        ? t("compare.actionAddDetails")
+                        : t("compare.actionNone")}
+                  </p>
+                  {!configured ? (
+                    <button
+                      type="button"
+                      onClick={onOpenWishlist}
+                      className="min-h-8 shrink-0 rounded-full border border-olive/25 bg-white/70 px-2.5 text-[9px] font-medium text-olive"
+                    >
+                      {t("compare.reviewRequirement")}
+                    </button>
+                  ) : row.resolved === "unknown" ? (
+                    <button
+                      type="button"
+                      onClick={() => onEditProperty(entry.home.id)}
+                      className="min-h-8 shrink-0 rounded-full border border-olive/25 bg-white/70 px-2.5 text-[9px] font-medium text-olive"
+                    >
+                      {t("compare.addDetails")}
+                    </button>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Sheet>
   );
 }
 

@@ -213,6 +213,8 @@ export function WishlistScreen({
     duplicateWishlist,
     deleteWishlist,
     updateWishlistBudget,
+    v2Synced,
+    evaluationsSynced,
     bulkSetImportance,
     bulkRemoveRequirements,
     restoreRequirements,
@@ -290,6 +292,18 @@ export function WishlistScreen({
           ? t("wishlist.myDealbreakers")
           : t("wishlist.allRequirements");
 
+  const savedTo = v2Synced
+    ? evaluationsSynced
+      ? t("wishlist.storageAccount")
+      : t("wishlist.storageShared")
+    : t("wishlist.storageDevice");
+
+  const storageStatus = !v2Synced
+    ? t("wishlist.storageStatusDevice")
+    : evaluationsSynced
+      ? t("wishlist.storageStatusAccount")
+      : t("wishlist.storageStatusShared");
+
   const bulkImportanceActions = (
     [
       { id: "must" as const, label: t("wishlist.bulkMoveMust") },
@@ -360,9 +374,11 @@ export function WishlistScreen({
     if (result.ok) {
       setSelectedIds([]);
       setBulkNotice(
-        count === 1
-          ? t("wishlist.bulkUpdatedOne")
-          : t("wishlist.bulkUpdated", { count }),
+        `${
+          count === 1
+            ? t("wishlist.bulkUpdatedOne")
+            : t("wishlist.bulkUpdated", { count })
+        } · ${savedTo}`,
       );
     } else {
       setBulkNotice(t("wishlist.bulkError"));
@@ -404,7 +420,7 @@ export function WishlistScreen({
     setBulkBusy(false);
     if (restored) {
       setUndoBatch(null);
-      setBulkNotice(t("wishlist.bulkRestored"));
+      setBulkNotice(`${t("wishlist.bulkRestored")} · ${savedTo}`);
     } else {
       setBulkNotice(t("wishlist.bulkError"));
     }
@@ -610,6 +626,9 @@ export function WishlistScreen({
                 done: progress.configured,
                 total: progress.total,
               })}
+            </p>
+            <p className="mt-1 text-[9.5px] leading-4 text-muted/80">
+              {storageStatus}
             </p>
 
             {manageOpen && (
@@ -822,11 +841,13 @@ export function WishlistScreen({
                 className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-olive/20 bg-olive/[0.06] px-3 py-2"
               >
                 <p className="text-[10px] text-ink">
-                  {undoBatch.requirements.length === 1
-                    ? t("wishlist.bulkRemovedOne")
-                    : t("wishlist.bulkRemoved", {
-                        count: undoBatch.requirements.length,
-                      })}
+                  {`${
+                    undoBatch.requirements.length === 1
+                      ? t("wishlist.bulkRemovedOne")
+                      : t("wishlist.bulkRemoved", {
+                          count: undoBatch.requirements.length,
+                        })
+                  } · ${savedTo}`}
                 </p>
                 <button
                   type="button"

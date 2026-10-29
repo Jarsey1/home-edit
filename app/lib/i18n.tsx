@@ -168,6 +168,8 @@ export const en = {
   "compare.disqualified": "Confirmed dealbreaker: {address}.",
   "compare.missingInfo":
     "Needs more information: {address} ({percent}% evaluated).",
+  "compare.insufficientInfo":
+    "Not enough information for {address}.",
   "compare.noEligible": "No home has enough information to rank yet.",
   "compare.noDealbreakers": "No confirmed dealbreakers in this comparison.",
   "compare.personalized": "Your priorities",
@@ -193,6 +195,37 @@ export const en = {
   "compare.currentWishlist": "Compared with {name}",
   "compare.estimated": "Estimated",
   "compare.noPrice": "Price TBD",
+  "matchStatus.notReady": "Wishlist not ready",
+  "matchStatus.partial": "Partially evaluated",
+  "matchStatus.scored": "Scored",
+  "matchStatus.disqualified": "Disqualified",
+  "compare.matchStatus": "Match status",
+  "compare.viewMissing": "View Missing Information →",
+  "compare.missingInformationTitle": "Missing information for {address}",
+  "compare.requiredCondition": "Required",
+  "compare.knownValue": "Known",
+  "compare.evaluationStatus": "Status",
+  "compare.actionNeeded": "Action needed",
+  "compare.statusIncomplete": "Cannot evaluate — requirement incomplete",
+  "compare.statusMet": "Meets requirement",
+  "compare.statusNotMet": "Does not meet requirement",
+  "compare.statusUnknown": "Unknown / Needs verification",
+  "compare.actionConfigure": "Review this requirement in your wishlist.",
+  "compare.actionAddDetails": "Add or verify the property value.",
+  "compare.actionNone": "No action needed.",
+  "compare.reviewRequirement": "Review wishlist",
+  "compare.addDetails": "Add details",
+  "compare.editProperty": "Edit property details",
+  "compare.draftTitle": "Your wishlist requirements are still drafts.",
+  "compare.draftBody":
+    "Review and include them in scoring so saved property facts can produce a match.",
+  "compare.draftCount": "{count} draft requirements",
+  "compare.noRequirementsTitle": "No wishlist requirements yet.",
+  "compare.noRequirementsBody":
+    "Add requirements in the Wishlist tab, then return here to evaluate this home.",
+  "compare.completeTitle": "No missing information.",
+  "compare.completeBody":
+    "All active wishlist requirements have been evaluated for this home.",
   "compare.noConfiguredTitle": "No wishlist preferences are configured yet.",
   "compare.noConfiguredBody":
     "Add or review a must-have or nice-to-have so property edits can update the comparison.",
@@ -355,6 +388,15 @@ export const en = {
   "wishlist.budgetPlaceholder": "Optional budget",
   "wishlist.setupProgress": "Setup progress",
   "wishlist.progressDetail": "{done} of {total} preferences configured",
+  "wishlist.storageDevice": "Saved to this device only.",
+  "wishlist.storageShared": "Saved to the shared test list.",
+  "wishlist.storageAccount": "Saved to your account.",
+  "wishlist.storageStatusDevice":
+    "Stored on this device. Account sync is not connected.",
+  "wishlist.storageStatusShared":
+    "Wishlists synced to the shared test list · evaluations stay on this device.",
+  "wishlist.storageStatusAccount":
+    "Wishlists and evaluations saved to your account.",
   "wishlist.progressNote":
     "Setup progress is separate from property match scores.",
   "wishlist.addRequirement": "Add requirement",
@@ -987,6 +1029,8 @@ const es: Record<TranslationKey, string> = {
   "compare.disqualified": "Imprescindible incumplido: {address}.",
   "compare.missingInfo":
     "Necesita más información: {address} ({percent}% evaluado).",
+  "compare.insufficientInfo":
+    "No hay suficiente información para {address}.",
   "compare.noEligible":
     "Ninguna casa tiene suficiente información para clasificar todavía.",
   "compare.noDealbreakers":
@@ -1016,6 +1060,37 @@ const es: Record<TranslationKey, string> = {
   "compare.currentWishlist": "Comparada con {name}",
   "compare.estimated": "Estimado",
   "compare.noPrice": "Precio por confirmar",
+  "matchStatus.notReady": "Lista no lista",
+  "matchStatus.partial": "Evaluación parcial",
+  "matchStatus.scored": "Evaluada",
+  "matchStatus.disqualified": "Descalificada",
+  "compare.matchStatus": "Estado de compatibilidad",
+  "compare.viewMissing": "Ver información faltante →",
+  "compare.missingInformationTitle": "Información faltante para {address}",
+  "compare.requiredCondition": "Requerido",
+  "compare.knownValue": "Conocido",
+  "compare.evaluationStatus": "Estado",
+  "compare.actionNeeded": "Acción necesaria",
+  "compare.statusIncomplete": "No se puede evaluar — preferencia incompleta",
+  "compare.statusMet": "Cumple el requisito",
+  "compare.statusNotMet": "No cumple el requisito",
+  "compare.statusUnknown": "Desconocido / Necesita verificación",
+  "compare.actionConfigure": "Revisa esta preferencia en tu lista.",
+  "compare.actionAddDetails": "Agrega o verifica el dato de la propiedad.",
+  "compare.actionNone": "No se necesita acción.",
+  "compare.reviewRequirement": "Revisar lista",
+  "compare.addDetails": "Agregar datos",
+  "compare.editProperty": "Editar datos de la propiedad",
+  "compare.draftTitle": "Tus preferencias aún son borradores.",
+  "compare.draftBody":
+    "Revísalas e inclúyelas en la evaluación para que los datos de las casas produzcan una compatibilidad.",
+  "compare.draftCount": "{count} preferencias en borrador",
+  "compare.noRequirementsTitle": "Aún no hay preferencias.",
+  "compare.noRequirementsBody":
+    "Agrega preferencias en la pestaña Lista y vuelve aquí para evaluar esta casa.",
+  "compare.completeTitle": "No falta información.",
+  "compare.completeBody":
+    "Todas las preferencias activas fueron evaluadas para esta casa.",
   "compare.noConfiguredTitle": "Aún no hay preferencias configuradas.",
   "compare.noConfiguredBody":
     "Agrega o revisa un imprescindible o un deseo para que los cambios de la propiedad actualicen la comparación.",
@@ -1178,6 +1253,15 @@ const es: Record<TranslationKey, string> = {
   "wishlist.budgetPlaceholder": "Presupuesto opcional",
   "wishlist.setupProgress": "Progreso de configuración",
   "wishlist.progressDetail": "{done} de {total} preferencias configuradas",
+  "wishlist.storageDevice": "Guardado solo en este dispositivo.",
+  "wishlist.storageShared": "Guardado en la lista de prueba compartida.",
+  "wishlist.storageAccount": "Guardado en tu cuenta.",
+  "wishlist.storageStatusDevice":
+    "Guardado en este dispositivo. La sincronización con tu cuenta no está conectada.",
+  "wishlist.storageStatusShared":
+    "Listas sincronizadas con la lista de prueba compartida · las evaluaciones quedan en este dispositivo.",
+  "wishlist.storageStatusAccount":
+    "Listas y evaluaciones guardadas en tu cuenta.",
   "wishlist.progressNote":
     "El progreso de configuración es distinto de la compatibilidad de una casa.",
   "wishlist.addRequirement": "Agregar preferencia",

@@ -190,7 +190,11 @@ type AppData = Snapshot & {
   activeScenario: BudgetScenario;
   getScoreForHome: (homeId: string) => ScoreResult | null;
   getFactsForHome: (homeId: string) => PropertyFacts | null;
-  getEvaluationRows: (homeId: string, wishlistId: string) => EvaluationRow[];
+  getEvaluationRows: (
+    homeId: string,
+    wishlistId: string,
+    includeUnconfigured?: boolean,
+  ) => EvaluationRow[];
   getMonthlyCostForHome: (homeId: string) => number | null;
   getBudgetEstimateForHome: (homeId: string) => BudgetEstimateInfo | null;
   getBudgetScenarioForProperty: (homeId: string) => BudgetScenario | null;
@@ -2538,7 +2542,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         scoredHomes.find((entry) => entry.home.id === homeId)?.score ?? null,
       getFactsForHome: (homeId: string) =>
         scoredHomes.find((entry) => entry.home.id === homeId)?.facts ?? null,
-      getEvaluationRows: (homeId: string, wishlistId: string) => {
+      getEvaluationRows: (
+        homeId: string,
+        wishlistId: string,
+        includeUnconfigured = false,
+      ) => {
         const entry = scoredHomes.find(
           (candidate) => candidate.home.id === homeId,
         );
@@ -2549,6 +2557,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           data.evaluations,
           homeId,
           wishlistId,
+          { includeUnconfigured },
         );
       },
       getMonthlyCostForHome: (homeId: string) => {
