@@ -39,7 +39,11 @@ import {
 } from "../../lib/requirement-config";
 import { buildComparisonSummary, type ScoreResult } from "../../lib/scoring";
 import type { EvaluationRow } from "../../lib/evaluations";
-import type { WishlistRequirement } from "../../lib/v2-types";
+import {
+  FEATURE_BY_KEY,
+  type FactValue,
+  type WishlistRequirement,
+} from "../../lib/v2-types";
 import { PropertyPhoto } from "../property-photo";
 import { Sheet } from "../sheet";
 import {
@@ -243,6 +247,7 @@ export function CompareScreen({
     scoredHomes,
     getEvaluationRows,
     activateRequirements,
+    saveHomeFact,
     ready,
   } = useAppData();
   const { t, locale } = useI18n();
@@ -1261,6 +1266,11 @@ export function CompareScreen({
           onOpenRequirement(requirementId);
         }}
         onActivate={activateRequirements}
+        onSaveFact={(featureKey, value) =>
+          missingInfoFor
+            ? saveHomeFact(missingInfoFor, featureKey, value)
+            : Promise.resolve({ ok: false, shared: false })
+        }
         onEditProperty={(homeId, featureKey) => {
           setMissingInfoFor(null);
           onEditProperty(homeId, featureKey);
@@ -1329,6 +1339,100 @@ function SummaryLine({
   );
 }
 
+function factKind(requirement: WishlistRequirement) {
+  const feature = FEATURE_BY_KEY[requirement.featureKey];
+  if (feature) return feature.kind;
+  if (requirement.type === "yes") return "boolean";
+  if (
+    requirement.type === "min" ||
+    requirement.type === "max" ||
+    requirement.type === "range"
+  ) {
+    return "number";
+  }
+  return "text";
+}
+
+function InlineFactEditor({
+  kind,
+  label,
+  onSave,
+}: {
+  kind: "number" | "boolean";
+  label: string;
+  onSave: (value: FactValue) => Promise<boolean>;
+}) {
+  const { t } = useI18n();
+  const [text, setText] = useState("");
+  const [choice, setChoice] = useState("unknown");
+  const [busy, setBusy] = useState(false);
+
+  if (kind === "boolean") {
+    return (
+      <div className="mt-1.5">
+        <select
+          value={choice}
+          aria-label={label}
+          disabled={busy}
+          onChange={async (event) => {
+            const next = event.target.value;
+            if (next === "unknown") return;
+            setChoice(next);
+            setBusy(true);
+            const ok = await onSave(next === "yes");
+            setBusy(false);
+            if (!ok) setChoice("unknown");
+          }}
+          className="min-h-10 w-full rounded-xl border border-line bg-white/75 px-3 text-[11px] text-ink outline-none focus:border-olive/35 focus:ring-2 focus:ring-olive/15 disabled:opacity-60"
+        >
+          <option value="unknown">{t("common.notSure")}</option>
+          <option value="yes">{t("common.yes")}</option>
+          <option value="no">{t("common.no")}</option>
+        </select>
+      </div>
+    );
+  }
+
+  const parsed = Number(text.replace(",", "."));
+  const valid = text.trim() !== "" && Number.isFinite(parsed);
+
+  async function save() {
+    if (!valid || busy) return;
+    setBusy(true);
+    const ok = await onSave(parsed);
+    setBusy(false);
+    if (ok) setText("");
+  }
+
+  return (
+    <div className="mt-1.5 flex items-center gap-2">
+      <input
+        value={text}
+        aria-label={label}
+        inputMode="decimal"
+        placeholder={t("compare.enterValue")}
+        disabled={busy}
+        onChange={(event) => setText(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            void save();
+          }
+        }}
+        className="min-h-10 min-w-0 flex-1 rounded-xl border border-line bg-white/75 px-3 text-[11px] tabular-nums text-ink outline-none placeholder:text-muted/50 focus:border-olive/35 focus:ring-2 focus:ring-olive/15 disabled:opacity-60"
+      />
+      <button
+        type="button"
+        onClick={() => void save()}
+        disabled={!valid || busy}
+        className="min-h-10 shrink-0 rounded-full bg-olive px-3 text-[10px] font-medium text-cream disabled:opacity-40"
+      >
+        {t("common.save")}
+      </button>
+    </div>
+  );
+}
+
 function configIssueText(
   issue: NonNullable<EvaluationRow["configIssue"]>,
   t: ReturnType<typeof useI18n>["t"],
@@ -1357,6 +1461,7 @@ function MissingInfoSheet({
   onEditProperty,
   onEditRequirement,
   onActivate,
+  onSaveFact,
   onEvaluate,
 }: {
   open: boolean;
@@ -1372,11 +1477,16 @@ function MissingInfoSheet({
   onActivate: (
     requirementIds: string[],
   ) => Promise<{ ok: boolean; count: number; error?: string }>;
+  onSaveFact: (
+    featureKey: string,
+    value: FactValue,
+  ) => Promise<{ ok: boolean; shared: boolean }>;
   onEvaluate: (homeId: string) => void;
 }) {
   const { t, locale } = useI18n();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [factNotice, setFactNotice] = useState("");
   if (!entry) return null;
 
   const hasConfigurationGaps = rows.some(
@@ -1428,6 +1538,19 @@ function MissingInfoSheet({
         ? t("compare.activatedOne")
         : t("compare.activated", { count: result.count }),
     );
+  }
+
+  async function saveFact(featureKey: string, value: FactValue) {
+    setFactNotice("");
+    const result = await onSaveFact(featureKey, value);
+    setFactNotice(
+      result.ok
+        ? result.shared
+          ? t("compare.factSavedShared")
+          : t("compare.factSavedDevice")
+        : t("compare.factSaveError"),
+    );
+    return result.ok;
   }
 
   return (
@@ -1515,6 +1638,20 @@ function MissingInfoSheet({
         </p>
       )}
 
+      {factNotice && (
+        <p
+          role="status"
+          className={[
+            "mt-2 text-[10px]",
+            factNotice === t("compare.factSaveError")
+              ? "text-clay"
+              : "text-olive",
+          ].join(" ")}
+        >
+          {factNotice}
+        </p>
+      )}
+
       {rows.length === 0 ? (
         <div className="mt-4 rounded-2xl border border-line bg-parchment/60 px-4 py-4">
           <p className="text-[12px] font-medium text-ink">
@@ -1541,6 +1678,20 @@ function MissingInfoSheet({
                     configured,
                     resolved: row.resolved,
                   });
+                  const kind = factKind(row.requirement);
+                  const inlineKind =
+                    kind === "number" || kind === "boolean" ? kind : null;
+                  const canEditInline =
+                    inlineKind !== null &&
+                    !row.configIssue &&
+                    configured &&
+                    row.resolved === "unknown" &&
+                    row.requirement.featureKey !== "monthlyOwnershipCost";
+                  const requirementName = translateRequirementName(
+                    row.requirement.name,
+                    locale,
+                    Boolean(row.requirement.custom),
+                  );
                   return (
                     <li
                       key={row.requirement.id}
@@ -1548,11 +1699,7 @@ function MissingInfoSheet({
                     >
                       <div className="flex items-start justify-between gap-2">
                         <p className="min-w-0 flex-1 text-[11.5px] font-medium leading-4 text-ink">
-                          {translateRequirementName(
-                            row.requirement.name,
-                            locale,
-                            Boolean(row.requirement.custom),
-                          )}
+                          {requirementName}
                         </p>
                         <span
                           className={`max-w-[58%] shrink-0 whitespace-normal rounded-full px-2 py-0.5 text-right text-[8px] uppercase leading-[1.35] tracking-[0.06em] ${requirementStatusStyle(displayStatus)}`}
@@ -1585,53 +1732,75 @@ function MissingInfoSheet({
                         </div>
                       </dl>
 
-                      <div className="mt-2 flex items-center justify-between gap-2 border-t border-line/60 pt-2">
-                        <p className="min-w-0 text-[9.5px] leading-4 text-muted">
-                          {row.configIssue
-                            ? configIssueText(row.configIssue, t)
-                            : !configured
-                              ? row.automatic === "met"
-                                ? t("compare.readyWouldMeet")
-                                : row.automatic === "not-met"
-                                  ? t("compare.readyWouldNotMeet")
-                                  : t("compare.statusReady")
-                              : row.resolved === "unknown"
-                                ? t("compare.actionAddDetails")
-                                : t("compare.actionNone")}
-                        </p>
-                        {row.configIssue ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onEditRequirement(row.requirement.id)
-                            }
-                            className="min-h-8 shrink-0 rounded-full border border-olive/25 bg-white/70 px-2.5 text-[9px] font-medium text-olive"
-                          >
-                            {t("compare.actionEditRequirement")}
-                          </button>
-                        ) : !configured ? (
-                          <button
-                            type="button"
-                            onClick={() => activate([row.requirement.id])}
-                            disabled={busy}
-                            className="min-h-8 shrink-0 rounded-full border border-olive/25 bg-white/70 px-2.5 text-[9px] font-medium text-olive disabled:opacity-50"
-                          >
-                            {t("compare.actionActivate")}
-                          </button>
-                        ) : row.resolved === "unknown" ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onEditProperty(
-                                entry.home.id,
-                                row.requirement.featureKey,
-                              )
-                            }
-                            className="min-h-8 shrink-0 rounded-full border border-olive/25 bg-white/70 px-2.5 text-[9px] font-medium text-olive"
-                          >
-                            {t("compare.addDetails")}
-                          </button>
-                        ) : null}
+                      <div className="mt-2 border-t border-line/60 pt-2">
+                        {canEditInline && inlineKind ? (
+                          <>
+                            <p className="text-[9.5px] leading-4 text-muted">
+                              {t("compare.actionAddDetails")}
+                            </p>
+                            <InlineFactEditor
+                              kind={inlineKind}
+                              label={requirementName}
+                              onSave={(value) =>
+                                saveFact(
+                                  row.requirement.featureKey,
+                                  value,
+                                )
+                              }
+                            />
+                          </>
+                        ) : (
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="min-w-0 text-[9.5px] leading-4 text-muted">
+                              {row.configIssue
+                                ? configIssueText(row.configIssue, t)
+                                : !configured
+                                  ? row.automatic === "met"
+                                    ? t("compare.readyWouldMeet")
+                                    : row.automatic === "not-met"
+                                      ? t("compare.readyWouldNotMeet")
+                                      : t("compare.statusReady")
+                                  : row.resolved === "unknown"
+                                    ? t("compare.actionAddDetails")
+                                    : t("compare.actionNone")}
+                            </p>
+                            {row.configIssue ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onEditRequirement(row.requirement.id)
+                                }
+                                className="min-h-8 shrink-0 rounded-full border border-olive/25 bg-white/70 px-2.5 text-[9px] font-medium text-olive"
+                              >
+                                {t("compare.actionEditRequirement")}
+                              </button>
+                            ) : !configured ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  activate([row.requirement.id])
+                                }
+                                disabled={busy}
+                                className="min-h-8 shrink-0 rounded-full border border-olive/25 bg-white/70 px-2.5 text-[9px] font-medium text-olive disabled:opacity-50"
+                              >
+                                {t("compare.actionActivate")}
+                              </button>
+                            ) : row.resolved === "unknown" ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onEditProperty(
+                                    entry.home.id,
+                                    row.requirement.featureKey,
+                                  )
+                                }
+                                className="min-h-8 shrink-0 rounded-full border border-olive/25 bg-white/70 px-2.5 text-[9px] font-medium text-olive"
+                              >
+                                {t("compare.addDetails")}
+                              </button>
+                            ) : null}
+                          </div>
+                        )}
                       </div>
                     </li>
                   );

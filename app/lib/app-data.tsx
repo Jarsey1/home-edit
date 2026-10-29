@@ -48,6 +48,7 @@ import {
   DEFAULT_WEIGHTS,
   type BudgetInputs,
   type BudgetScenario,
+  type FactValue,
   type PropertyDetails,
   type PropertyEvaluation,
   type PropertyFacts,
@@ -210,6 +211,11 @@ type AppData = Snapshot & {
     homeId: string,
     patch: HomeUpdate,
   ) => Promise<{ home: boolean; details: boolean }>;
+  saveHomeFact: (
+    homeId: string,
+    featureKey: string,
+    value: FactValue,
+  ) => Promise<{ ok: boolean; shared: boolean }>;
   removeHome: (homeId: string) => void;
   toggleSaved: (homeId: string) => void;
   setTourRequested: (homeId: string, value?: boolean) => void;
@@ -950,6 +956,45 @@ function toEvaluationRow(evaluation: PropertyEvaluation, ownerId: string) {
   };
 }
 
+function factPatchFor(featureKey: string, value: FactValue) {
+  const numeric =
+    typeof value === "number" && Number.isFinite(value) ? value : null;
+
+  switch (featureKey) {
+    case "price":
+      return { price: numeric ?? 0 };
+    case "beds":
+      return { beds: numeric ?? 0 };
+    case "baths":
+      return { baths: numeric ?? 0 };
+    case "sqft":
+      return { sqft: numeric ?? 0 };
+    case "yearBuilt":
+      return { yearBuilt: numeric ?? 0 };
+    case "hoa":
+      return { hoa: numeric ?? 0, facts: { hoa: numeric } };
+    case "garageCars":
+      return {
+        garage:
+          numeric === null
+            ? ""
+            : `${numeric} ${numeric === 1 ? "car" : "cars"}`,
+        facts: { garageCars: numeric },
+      };
+    case "pool":
+      return { pool: value === true, facts: { pool: value } };
+    case "gated":
+      return { gated: value === true, facts: { gated: value } };
+    case "propertyType":
+      return {
+        type: typeof value === "string" ? value : "",
+        facts: { propertyType: value },
+      };
+    default:
+      return { facts: { [featureKey]: value } };
+  }
+}
+
 function mergeDetails(home: Home, details: PropertyDetails | undefined): Home {
   if (!details) {
     return {
@@ -1632,6 +1677,25 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       return { home: homeSynced, details: detailsSynced };
     },
     [data.details, data.homes, ownerId, v2Synced],
+  );
+
+  const saveHomeFact = useCallback(
+    async (
+      homeId: string,
+      featureKey: string,
+      value: FactValue,
+    ): Promise<{ ok: boolean; shared: boolean }> => {
+      const home = data.homes.find((entry) => entry.id === homeId);
+      if (!home) return { ok: false, shared: false };
+      const result = await updateHome(
+        homeId,
+        factPatchFor(featureKey, value) as HomeUpdate,
+      );
+      // The local update always succeeds; `shared` only reports the cloud
+      // portion so the confirmation never overstates synchronization.
+      return { ok: true, shared: result.home && result.details };
+    },
+    [data.homes, updateHome],
   );
 
   const removeHome = useCallback(
@@ -2701,6 +2765,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       setEvaluation,
       addHome,
       updateHome,
+      saveHomeFact,
       removeHome,
       toggleSaved,
       setTourRequested,
@@ -2736,6 +2801,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setEvaluation,
     addHome,
     updateHome,
+    saveHomeFact,
     removeHome,
     toggleSaved,
     setTourRequested,
