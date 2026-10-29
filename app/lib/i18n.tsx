@@ -200,6 +200,12 @@ export const en = {
   "compare.noMustConfigured": "No must-haves configured",
   "compare.noMustNotice":
     "This comparison has no configured must-haves; scores use nice-to-haves only.",
+  "compare.showMissing": "Show missing must-haves for {address}",
+  "compare.missingSection": "Missing",
+  "compare.awaitingSection": "Awaiting verification",
+  "compare.metSection": "Met",
+  "compare.mustHavesFor": "Must-haves for {address}",
+  "compare.evaluateHome": "Evaluate home",
 
   "more.eyebrow": "Everything else",
   "more.title": "More",
@@ -970,6 +976,12 @@ const es: Record<TranslationKey, string> = {
   "compare.noMustConfigured": "Sin imprescindibles",
   "compare.noMustNotice":
     "Esta comparación no tiene imprescindibles configurados; las puntuaciones usan solo los deseos.",
+  "compare.showMissing": "Ver imprescindibles faltantes de {address}",
+  "compare.missingSection": "Faltantes",
+  "compare.awaitingSection": "Pendientes de verificar",
+  "compare.metSection": "Cumplidos",
+  "compare.mustHavesFor": "Imprescindibles de {address}",
+  "compare.evaluateHome": "Evaluar casa",
 
   "more.eyebrow": "Todo lo demás",
   "more.title": "Más",

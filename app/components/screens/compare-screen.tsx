@@ -22,11 +22,13 @@ import {
 } from "../../lib/homes";
 import {
   translatePropertyType,
+  translateRequirementName,
   translateWishlistName,
   useI18n,
 } from "../../lib/i18n";
 import { buildComparisonSummary, type ScoreResult } from "../../lib/scoring";
 import { PropertyPhoto } from "../property-photo";
+import { Sheet } from "../sheet";
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -104,11 +106,13 @@ export function CompareScreen({
   onOpenProperty,
   onOpenBudget,
   onOpenWishlist,
+  onEvaluate,
   onAddHome,
 }: {
   onOpenProperty: (homeId: string) => void;
   onOpenBudget: (homeId: string) => void;
   onOpenWishlist: () => void;
+  onEvaluate: (homeId: string) => void;
   onAddHome: () => void;
 }) {
   const {
@@ -128,6 +132,7 @@ export function CompareScreen({
   const [addingNote, setAddingNote] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [notesOpen, setNotesOpen] = useState(false);
+  const [mustHavesFor, setMustHavesFor] = useState<string | null>(null);
   const [pendingRemove, setPendingRemove] = useState<{
     id: string;
     address: string;
@@ -346,10 +351,17 @@ export function CompareScreen({
         entry.score.mustMissing.length === 0 ? (
           <CheckIcon className="mx-auto h-4 w-4 text-olive" />
         ) : (
-          <span className="inline-flex items-center gap-1 text-[10.5px] tabular-nums text-clay">
+          <button
+            type="button"
+            onClick={() => setMustHavesFor(entry.home.id)}
+            aria-label={t("compare.showMissing", {
+              address: entry.home.address,
+            })}
+            className="inline-flex items-center gap-1 text-[10.5px] tabular-nums text-clay underline decoration-clay/30 underline-offset-2"
+          >
             <XIcon className="h-3.5 w-3.5" />
             {entry.score.mustMissing.length}
-          </span>
+          </button>
         ),
     },
     {
@@ -753,7 +765,11 @@ export function CompareScreen({
                   )}
 
                 {summary.missingMustHaves.map((candidate) => (
-                  <SummaryLine key={`must-${candidate.id}`} tone="clay">
+                  <SummaryLine
+                    key={`must-${candidate.id}`}
+                    tone="clay"
+                    onClick={() => setMustHavesFor(candidate.id)}
+                  >
                     {t("compare.missingMust", {
                       address: candidate.address,
                       count: candidate.score.mustMissing.length,
@@ -955,6 +971,16 @@ export function CompareScreen({
           </>
         )}
       </div>
+
+      <MustHavesSheet
+        open={Boolean(mustHavesFor)}
+        entry={entries.find((entry) => entry.home.id === mustHavesFor) ?? null}
+        onClose={() => setMustHavesFor(null)}
+        onEvaluate={(homeId) => {
+          setMustHavesFor(null);
+          onEvaluate(homeId);
+        }}
+      />
     </div>
   );
 }
@@ -962,12 +988,14 @@ export function CompareScreen({
 function SummaryLine({
   children,
   tone,
+  onClick,
 }: {
   children: ReactNode;
   tone: "cream" | "clay" | "muted";
+  onClick?: () => void;
 }) {
-  return (
-    <li className="flex items-start gap-2.5">
+  const content = (
+    <>
       <span
         aria-hidden="true"
         className={[
@@ -987,10 +1015,121 @@ function SummaryLine({
             : tone === "muted"
               ? "text-cream/80"
               : "text-cream/90",
+          onClick ? "underline decoration-cream/30 underline-offset-2" : "",
         ].join(" ")}
       >
         {children}
       </span>
+    </>
+  );
+
+  return (
+    <li>
+      {onClick ? (
+        <button
+          type="button"
+          onClick={onClick}
+          className="flex w-full items-start gap-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cream/40"
+        >
+          {content}
+        </button>
+      ) : (
+        <div className="flex items-start gap-2.5">{content}</div>
+      )}
     </li>
+  );
+}
+
+function MustHavesSheet({
+  open,
+  entry,
+  onClose,
+  onEvaluate,
+}: {
+  open: boolean;
+  entry: CompareEntry | null;
+  onClose: () => void;
+  onEvaluate: (homeId: string) => void;
+}) {
+  const { t, locale } = useI18n();
+  if (!entry) return null;
+
+  const groups = [
+    {
+      key: "missing",
+      label: t("compare.missingSection"),
+      items: entry.score.mustMissing,
+      Icon: XIcon,
+      tone: "text-clay",
+    },
+    {
+      key: "unknown",
+      label: t("compare.awaitingSection"),
+      items: entry.score.mustUnknown,
+      Icon: QuestionIcon,
+      tone: "text-muted",
+    },
+    {
+      key: "met",
+      label: t("compare.metSection"),
+      items: entry.score.mustMet,
+      Icon: CheckIcon,
+      tone: "text-olive",
+    },
+  ];
+
+  return (
+    <Sheet
+      open={open}
+      title={t("compare.mustHavesFor", { address: entry.home.address })}
+      onClose={onClose}
+      footer={
+        <button
+          type="button"
+          onClick={() => onEvaluate(entry.home.id)}
+          className="min-h-11 w-full rounded-full bg-olive px-4 text-[12px] font-medium text-cream"
+        >
+          {t("compare.evaluateHome")}
+        </button>
+      }
+    >
+      {groups.map((group) => (
+        <section key={group.key} className="mb-4 last:mb-0">
+          <p className="text-[9px] font-medium uppercase tracking-[0.16em] text-muted">
+            {group.label} · {group.items.length}
+          </p>
+          {group.items.length === 0 ? (
+            <p className="mt-1 text-[10px] text-muted">—</p>
+          ) : (
+            <ul className="mt-2 space-y-1.5">
+              {group.items.map((requirement) => (
+                <li
+                  key={requirement.id}
+                  className="flex items-start gap-2.5 rounded-xl border border-line/70 bg-white/55 px-3 py-2.5"
+                >
+                  <group.Icon
+                    className={["mt-0.5 h-3.5 w-3.5 shrink-0", group.tone].join(
+                      " ",
+                    )}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11.5px] font-medium leading-4 text-ink">
+                      {translateRequirementName(requirement.name, locale)}
+                    </span>
+                    <span className="mt-0.5 block text-[9.5px] text-muted">
+                      {t(
+                        `importance.${requirement.importance}` as Parameters<
+                          typeof t
+                        >[0],
+                      )}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ))}
+    </Sheet>
   );
 }
