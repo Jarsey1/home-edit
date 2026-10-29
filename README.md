@@ -9,6 +9,8 @@ Built with Next.js (App Router), React, Tailwind CSS and Supabase.
 
 - Node.js 20+
 - A Supabase project (free tier is fine)
+- Optional: a [RentCast](https://app.rentcast.io/app/api) API key for prefilled
+  property details
 
 ## Setup
 
@@ -27,10 +29,13 @@ Built with Next.js (App Router), React, Tailwind CSS and Supabase.
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-or-anon-key
+   RENTCAST_API_KEY=your-rentcast-api-key
    ```
 
-   Find both in Supabase → **Project Settings → API**. The publishable/anon key
-   is designed to be public; access is controlled by row-level security.
+   Find the Supabase values in **Project Settings → API**. The
+   publishable/anon key is designed to be public; access is controlled by
+   row-level security. `RENTCAST_API_KEY` is optional — leave it blank to keep
+   the app on manual entry.
 
 3. Create the tables. In Supabase, open **SQL Editor → New query**, paste the
    contents of [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql),
@@ -78,6 +83,21 @@ the ranked results down to that state, and retries the plain query if nothing
 matches. Results are cached in memory for 10 minutes by the route handler; if
 the service is unreachable, manual address entry still works.
 
+### Prefilled property details
+
+If `RENTCAST_API_KEY` is set, picking an address suggestion also asks
+`/api/property-lookup` for public records. Beds, baths and square footage are
+filled in only when those fields are still empty, and you can edit or clear them
+before saving. The details card also shows year built, lot size and last sale
+price when available. A **Look up details** button does the same for an address
+you typed manually.
+
+RentCast data comes from public records, so it can lag or be incomplete and
+coverage varies by county. The last sale price is **not** the current asking
+price, so the price field is never prefilled. Lookups are cached for 10 minutes
+and fail quietly to manual entry when the key is missing or the service is
+unavailable. The free plan includes 50 lookups per month.
+
 ## Working from another laptop
 
 ```bash
@@ -120,6 +140,7 @@ app/
     types.ts                persisted record types
   api/
     address-search/         Photon-backed address suggestions
+    property-lookup/        RentCast-backed public-record details
   components/
     dashboard.tsx
     screens/                all eight screens + Add Home

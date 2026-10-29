@@ -9,6 +9,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useAppData } from "../../lib/app-data";
+import { formatPrice } from "../../lib/homes";
 import { findState, US_STATES } from "../../lib/us-states";
 import { BackButton } from "../back-button";
 import {
@@ -32,6 +33,26 @@ type SearchResponse = {
   results?: Suggestion[];
   unavailable?: boolean;
 };
+
+type PropertyDetails = {
+  address: string;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  squareFootage: number | null;
+  lotSize: number | null;
+  yearBuilt: number | null;
+  propertyType: string;
+  lastSaleDate: string;
+  lastSalePrice: number | null;
+};
+
+type LookupResponse = {
+  found?: boolean;
+  unavailable?: boolean;
+  details?: PropertyDetails;
+};
+
+type LookupState = "idle" | "loading" | "found" | "empty" | "error";
 
 const fieldClass =
   "w-full rounded-2xl border border-line bg-white/60 px-4 py-3 text-[13px] text-ink outline-none transition-colors placeholder:text-muted/50 focus:border-olive/35 focus:ring-2 focus:ring-olive/15";
@@ -72,7 +93,15 @@ export function AddHomeScreen({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const lookupController = useRef<AbortController | null>(null);
+  const autoFilled = useRef({ beds: "", baths: "", sqft: "" });
+  const [lookupState, setLookupState] = useState<LookupState>("idle");
+  const [lookupDetails, setLookupDetails] = useState<PropertyDetails | null>(
+    null,
+  );
+
   const address = selected?.address ?? query.trim();
+  const lookupAddress = [address, city.trim()].filter(Boolean).join(", ");
   const duplicate =
     address.length > 0 &&
     homes.some(
@@ -80,6 +109,24 @@ export function AddHomeScreen({
     );
   const showList = open && !selected && query.trim().length >= 4;
   const selectedState = findState(stateCode);
+  const detailMeta = lookupDetails
+    ? [
+        lookupDetails.propertyType,
+        lookupDetails.yearBuilt ? `Built ${lookupDetails.yearBuilt}` : "",
+        lookupDetails.lotSize
+          ? `Lot ${Math.round(lookupDetails.lotSize).toLocaleString()} sq ft`
+          : "",
+        lookupDetails.lastSalePrice
+          ? `Last sold ${formatPrice(lookupDetails.lastSalePrice)}${
+              lookupDetails.lastSaleDate
+                ? ` in ${lookupDetails.lastSaleDate.slice(0, 4)}`
+                : ""
+            }`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
 
   // Debounced address lookup. Each keystroke cancels the previous request.
   useEffect(() => {
@@ -132,6 +179,111 @@ export function AddHomeScreen({
     };
   }, [query, selected, stateCode]);
 
+  useEffect(
+    () => () => {
+      lookupController.current?.abort();
+    },
+    [],
+  );
+
+  function clearAutoFilled() {
+    const values = autoFilled.current;
+    if (values.beds) {
+      setBeds((value) => (value === values.beds ? "" : value));
+    }
+    if (values.baths) {
+      setBaths((value) => (value === values.baths ? "" : value));
+    }
+    if (values.sqft) {
+      setSqft((value) => (value === values.sqft ? "" : value));
+    }
+    autoFilled.current = { beds: "", baths: "", sqft: "" };
+  }
+
+  function applyDetails(details: PropertyDetails) {
+    const values = autoFilled.current;
+    const next = { ...values };
+
+    if (details.bedrooms != null) {
+      const value = String(details.bedrooms);
+      setBeds((current) => (current && current !== values.beds ? current : value));
+      next.beds = value;
+    }
+
+    if (details.bathrooms != null) {
+      const value = String(details.bathrooms);
+      setBaths((current) =>
+        current && current !== values.baths ? current : value,
+      );
+      next.baths = value;
+    }
+
+    if (details.squareFootage != null) {
+      const value = String(Math.round(details.squareFootage));
+      setSqft((current) =>
+        current && current !== values.sqft ? current : value,
+      );
+      next.sqft = value;
+    }
+
+    autoFilled.current = next;
+  }
+
+  function resetLookup() {
+    lookupController.current?.abort();
+    lookupController.current = null;
+    setLookupState("idle");
+    setLookupDetails(null);
+  }
+
+  function lookupProperty(
+    addressToLookUp: string,
+    options?: { silent?: boolean },
+  ) {
+    const trimmed = addressToLookUp.trim();
+    if (trimmed.length < 6) return;
+
+    lookupController.current?.abort();
+    const controller = new AbortController();
+    lookupController.current = controller;
+    setLookupState("loading");
+    setLookupDetails(null);
+
+    fetch(`/api/property-lookup?address=${encodeURIComponent(trimmed)}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Lookup failed ${response.status}`);
+        return (await response.json()) as LookupResponse;
+      })
+      .then((payload) => {
+        if (controller.signal.aborted) return;
+
+        if (!payload.found || !payload.details) {
+          if (payload.unavailable) {
+            setLookupState(options?.silent ? "idle" : "error");
+          } else {
+            setLookupState("empty");
+          }
+          return;
+        }
+
+        applyDetails(payload.details);
+        setLookupDetails(payload.details);
+        setLookupState("found");
+      })
+      .catch((lookupError) => {
+        if (controller.signal.aborted) return;
+        console.warn("Property details unavailable:", lookupError);
+        setLookupState(options?.silent ? "idle" : "error");
+      })
+      .finally(() => {
+        if (lookupController.current === controller) {
+          lookupController.current = null;
+        }
+      });
+  }
+
   function changeQuery(value: string) {
     setQuery(value);
     setSelected(null);
@@ -141,6 +293,8 @@ export function AddHomeScreen({
     setLoading(false);
     setActiveIndex(-1);
     setOpen(false);
+    clearAutoFilled();
+    resetLookup();
   }
 
   function changeState(value: string) {
@@ -153,7 +307,14 @@ export function AddHomeScreen({
     setError(null);
   }
 
+  function changeCity(value: string) {
+    setCity(value);
+    clearAutoFilled();
+    resetLookup();
+  }
+
   function choose(suggestion: Suggestion) {
+    clearAutoFilled();
     setSelected(suggestion);
     setQuery(suggestion.address);
     setCity(suggestion.city);
@@ -165,6 +326,10 @@ export function AddHomeScreen({
     setActiveIndex(-1);
     setError(null);
     inputRef.current?.focus();
+    lookupProperty(
+      [suggestion.address, suggestion.city].filter(Boolean).join(", "),
+      { silent: true },
+    );
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -409,6 +574,8 @@ export function AddHomeScreen({
               <button
                 type="button"
                 onClick={() => {
+                  clearAutoFilled();
+                  resetLookup();
                   setSelected(null);
                   setQuery("");
                   setCity("");
@@ -447,7 +614,7 @@ export function AddHomeScreen({
             <input
               id={cityId}
               value={city}
-              onChange={(event) => setCity(event.target.value)}
+              onChange={(event) => changeCity(event.target.value)}
               type="text"
               placeholder="e.g. Miami, FL 33137"
               className={`${fieldClass} mt-2`}
@@ -458,6 +625,60 @@ export function AddHomeScreen({
             <legend className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted">
               Details <span className="normal-case text-muted/70">(optional)</span>
             </legend>
+
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <button
+                type="button"
+                onClick={() => lookupProperty(lookupAddress)}
+                disabled={
+                  lookupState === "loading" || lookupAddress.length < 6
+                }
+                className="inline-flex items-center gap-1.5 rounded-full border border-olive/25 bg-olive/[0.06] px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.1em] text-olive transition-colors hover:bg-olive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {lookupState === "loading" ? (
+                  <span
+                    aria-hidden="true"
+                    className="h-3 w-3 animate-spin rounded-full border border-olive/30 border-t-olive"
+                  />
+                ) : (
+                  <SearchIcon className="h-3 w-3" />
+                )}
+                {lookupState === "loading" ? "Looking up…" : "Look up details"}
+              </button>
+
+              {lookupState === "found" && (
+                <span className="text-[10px] text-muted">
+                  Public records found
+                </span>
+              )}
+            </div>
+
+            <p
+              aria-live="polite"
+              className="mt-1 text-[10px] leading-4 text-muted"
+            >
+              {lookupState === "idle" &&
+                "Fill in what you know, or look up beds, baths and square footage from public records."}
+              {lookupState === "loading" &&
+                "Searching public records for this address…"}
+              {lookupState === "found" &&
+                "Beds, baths and square footage were prefilled where available. Double-check before saving."}
+              {lookupState === "empty" &&
+                "No public records found for this address. You can still fill in the details manually."}
+              {lookupState === "error" &&
+                "Property details aren't available right now. Fill them in manually or try again."}
+            </p>
+
+            {lookupState === "found" && lookupDetails && detailMeta && (
+              <div className="mt-3 rounded-2xl border border-olive/20 bg-olive/[0.06] px-4 py-3">
+                <p className="text-[10.5px] leading-4 text-ink/80">
+                  {detailMeta}
+                </p>
+                <p className="mt-1 text-[10px] leading-4 text-muted">
+                  Last sale price is not the current asking price.
+                </p>
+              </div>
+            )}
 
             <div className="mt-3 grid grid-cols-2 gap-3">
               <label className="block">
