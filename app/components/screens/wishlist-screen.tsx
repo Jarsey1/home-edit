@@ -17,6 +17,10 @@ import type {
   Wishlist,
   WishlistRequirement,
 } from "../../lib/v2-types";
+import {
+  isRequirementComplete,
+  isRequirementReadyToActivate,
+} from "../../lib/requirement-config";
 import { groupByCategory, wishlistSetupProgress } from "../../lib/wishlists";
 import { BackButton } from "../back-button";
 import { HouseIllustration } from "../house-illustration";
@@ -179,6 +183,11 @@ function PriorityRow({
               {t("wishlist.draft")}
             </span>
           )}
+          {!isRequirementComplete(requirement) && (
+            <span className="rounded-full border border-gold/30 bg-gold/10 px-1.5 py-0.5 text-[8px] uppercase tracking-[0.08em] text-[#6b5535]">
+              {t("wishlist.configNeeded")}
+            </span>
+          )}
         </div>
       </div>
       {!manageMode && (
@@ -199,12 +208,15 @@ function PriorityRow({
 export function WishlistScreen({
   onBack,
   onBrowseHomes,
+  focusRequirementId = null,
 }: {
   onBack: () => void;
   onBrowseHomes: () => void;
+  focusRequirementId?: string | null;
 }) {
   const {
     wishlists,
+    requirements,
     activeWishlist,
     activeRequirements,
     setActiveWishlist,
@@ -218,14 +230,28 @@ export function WishlistScreen({
     bulkSetImportance,
     bulkRemoveRequirements,
     restoreRequirements,
+    activateRequirements,
+    ready,
   } = useAppData();
   const { t, locale } = useI18n();
 
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editing, setEditing] = useState<WishlistRequirement | null>(null);
+  const initialFocus = focusRequirementId
+    ? requirements.find(
+        (requirement) => requirement.id === focusRequirementId,
+      ) ?? null
+    : null;
+
+  const [editorOpen, setEditorOpen] = useState(Boolean(initialFocus));
+  const [editing, setEditing] = useState<WishlistRequirement | null>(
+    initialFocus,
+  );
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("priority");
-  const [filter, setFilter] = useState<Filter>("must");
+  const [filter, setFilter] = useState<Filter>(
+    initialFocus && initialFocus.importance !== "ignore"
+      ? initialFocus.importance
+      : "must",
+  );
   const [manageOpen, setManageOpen] = useState(false);
   const [manageMode, setManageMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -248,6 +274,10 @@ export function WishlistScreen({
   );
   const groups = useMemo(
     () => groupByCategory(activeRequirements),
+    [activeRequirements],
+  );
+  const readyToActivate = useMemo(
+    () => activeRequirements.filter(isRequirementReadyToActivate),
     [activeRequirements],
   );
 
@@ -362,6 +392,28 @@ export function WishlistScreen({
   function deselectAll() {
     setSelectedIds([]);
     setBulkNotice("");
+  }
+
+  async function activateReadyRequirements() {
+    if (readyToActivate.length === 0 || bulkBusy) return;
+    setBulkBusy(true);
+    setBulkNotice("");
+    const result = await activateRequirements(
+      readyToActivate.map((requirement) => requirement.id),
+    );
+    setBulkBusy(false);
+    if (!result.ok) {
+      setBulkNotice(t("wishlist.activateError"));
+      return;
+    }
+    setSelectedIds([]);
+    setBulkNotice(
+      `${
+        result.count === 1
+          ? t("wishlist.activatedOne")
+          : t("wishlist.activated", { count: result.count })
+      } · ${savedTo}`,
+    );
   }
 
   async function applyBulkImportance(importance: Importance) {
@@ -630,6 +682,28 @@ export function WishlistScreen({
             <p className="mt-1 text-[9.5px] leading-4 text-muted/80">
               {storageStatus}
             </p>
+
+            {ready && readyToActivate.length > 0 && (
+              <div className="mt-2.5 rounded-xl border border-olive/20 bg-olive/[0.05] px-3 py-2.5">
+                <p className="text-[10px] leading-4 text-ink">
+                  {t("wishlist.readyToActivate", {
+                    count: readyToActivate.length,
+                  })}
+                </p>
+                <button
+                  type="button"
+                  onClick={activateReadyRequirements}
+                  disabled={bulkBusy}
+                  className="mt-1.5 min-h-9 rounded-full bg-olive px-3 text-[10px] font-medium text-cream disabled:opacity-50"
+                >
+                  {readyToActivate.length === 1
+                    ? t("wishlist.activateReadyOne")
+                    : t("wishlist.activateReady", {
+                        count: readyToActivate.length,
+                      })}
+                </button>
+              </div>
+            )}
 
             {manageOpen && (
               <div className="mt-3 border-t border-line/80 pt-3">
@@ -954,7 +1028,8 @@ export function WishlistScreen({
                 {groups.map(({ category, items }) => {
                   const isOpen = openCategory === category;
                   const configured = items.filter(
-                    (item) => item.configured,
+                    (item) =>
+                      item.configured && isRequirementComplete(item),
                   ).length;
                   const percent =
                     (configured / Math.max(1, items.length)) * 100;

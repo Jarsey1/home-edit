@@ -35,6 +35,7 @@ export default function HomeApp() {
   const { homes, topMatch } = useAppData();
   const [tab, setTab] = useState<TabId>("home");
   const [overlays, setOverlays] = useState<Overlay[]>([]);
+  const [wishlistFocus, setWishlistFocus] = useState<string | null>(null);
   const overlay = overlays[overlays.length - 1] ?? null;
   const overlayHome =
     overlay && "homeId" in overlay
@@ -47,6 +48,7 @@ export default function HomeApp() {
 
   function changeTab(next: TabId) {
     setOverlays([]);
+    setWishlistFocus(null);
     setTab(next);
   }
 
@@ -56,6 +58,11 @@ export default function HomeApp() {
 
   function openPropertyEvaluation(homeId: string) {
     setOverlays([{ type: "evaluate", homeId }]);
+  }
+
+  function openWishlistRequirement(requirementId: string) {
+    changeTab("wishlist");
+    setWishlistFocus(requirementId);
   }
 
   function pushOverlay(type: OverlayType, homeId: string) {
@@ -165,6 +172,7 @@ export default function HomeApp() {
               onEditProperty={(homeId) =>
                 setOverlays([{ type: "edit-home", homeId }])
               }
+              onOpenRequirement={openWishlistRequirement}
               onAddHome={() => setOverlays([{ type: "add-home" }])}
             />
           )}
@@ -173,6 +181,7 @@ export default function HomeApp() {
             <WishlistScreen
               onBack={() => changeTab("home")}
               onBrowseHomes={() => changeTab("homes")}
+              focusRequirementId={wishlistFocus}
             />
           )}
 

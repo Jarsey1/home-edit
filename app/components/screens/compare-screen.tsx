@@ -32,6 +32,11 @@ import {
   type MatchStatus,
   type RequirementDisplayStatus,
 } from "../../lib/match-status";
+import {
+  isRequirementComplete,
+  isRequirementReadyToActivate,
+  isRequirementScoreable,
+} from "../../lib/requirement-config";
 import { buildComparisonSummary, type ScoreResult } from "../../lib/scoring";
 import type { EvaluationRow } from "../../lib/evaluations";
 import type { WishlistRequirement } from "../../lib/v2-types";
@@ -99,6 +104,8 @@ function matchStatusKey(status: MatchStatus) {
   switch (status) {
     case "not-ready":
       return "matchStatus.notReady" as const;
+    case "insufficient":
+      return "matchStatus.insufficient" as const;
     case "disqualified":
       return "matchStatus.disqualified" as const;
     case "scored":
@@ -111,7 +118,9 @@ function matchStatusKey(status: MatchStatus) {
 function matchStatusStyle(status: MatchStatus) {
   if (status === "scored") return "bg-olive/10 text-olive";
   if (status === "disqualified") return "bg-clay/10 text-clay";
-  if (status === "not-ready") return "bg-gold/10 text-[#6b5535]";
+  if (status === "not-ready" || status === "insufficient") {
+    return "bg-gold/10 text-[#6b5535]";
+  }
   return "bg-parchment text-muted";
 }
 
@@ -121,8 +130,10 @@ function requirementStatusKey(status: RequirementDisplayStatus) {
       return "compare.statusMet" as const;
     case "not-met":
       return "compare.statusNotMet" as const;
-    case "incomplete":
-      return "compare.statusIncomplete" as const;
+    case "config-needed":
+      return "compare.statusConfigNeeded" as const;
+    case "ready":
+      return "compare.statusReady" as const;
     default:
       return "compare.statusUnknown" as const;
   }
@@ -131,7 +142,8 @@ function requirementStatusKey(status: RequirementDisplayStatus) {
 function requirementStatusStyle(status: RequirementDisplayStatus) {
   if (status === "met") return "bg-olive/10 text-olive";
   if (status === "not-met") return "bg-clay/10 text-clay";
-  if (status === "incomplete") return "bg-gold/10 text-[#6b5535]";
+  if (status === "config-needed") return "bg-gold/10 text-[#6b5535]";
+  if (status === "ready") return "bg-olive/[0.08] text-olive";
   return "bg-parchment text-muted";
 }
 
@@ -210,6 +222,7 @@ export function CompareScreen({
   onOpenWishlist,
   onEvaluate,
   onEditProperty,
+  onOpenRequirement,
   onAddHome,
 }: {
   onOpenProperty: (homeId: string) => void;
@@ -217,6 +230,7 @@ export function CompareScreen({
   onOpenWishlist: () => void;
   onEvaluate: (homeId: string) => void;
   onEditProperty: (homeId: string) => void;
+  onOpenRequirement: (requirementId: string) => void;
   onAddHome: () => void;
 }) {
   const {
@@ -228,6 +242,8 @@ export function CompareScreen({
     removeHome,
     scoredHomes,
     getEvaluationRows,
+    activateRequirements,
+    ready,
   } = useAppData();
   const { t, locale } = useI18n();
   const [selectedIds, setSelectedIds] = useState<string[]>(() =>
@@ -239,6 +255,8 @@ export function CompareScreen({
   const [notesOpen, setNotesOpen] = useState(false);
   const [mustHavesFor, setMustHavesFor] = useState<string | null>(null);
   const [missingInfoFor, setMissingInfoFor] = useState<string | null>(null);
+  const [activateBusy, setActivateBusy] = useState(false);
+  const [activateNotice, setActivateNotice] = useState("");
   const [pendingRemove, setPendingRemove] = useState<{
     id: string;
     address: string;
@@ -303,17 +321,23 @@ export function CompareScreen({
   const activeName = activeWishlist
     ? translateWishlistName(activeWishlist.name, locale)
     : "";
-  const scoredRequirements = activeRequirements.filter(
-    (requirement) =>
-      requirement.configured !== false && requirement.importance !== "ignore",
-  );
+  const scoredRequirements = activeRequirements.filter(isRequirementScoreable);
   const hasScoredRequirements = scoredRequirements.length > 0;
-  const draftRequirements = activeRequirements.filter(
+  const readyDrafts = activeRequirements.filter(isRequirementReadyToActivate);
+  const configNeeded = activeRequirements.filter(
     (requirement) =>
-      requirement.configured === false && requirement.importance !== "ignore",
-  ).length;
+      requirement.importance !== "ignore" &&
+      !isRequirementComplete(requirement),
+  );
+  const draftRequirements = readyDrafts.length + configNeeded.length;
   const hasMustHaves = scoredRequirements.some(
     (requirement) => requirement.importance === "must",
+  );
+  const hasConfigurationGaps = activeRequirements.some(
+    (requirement) =>
+      requirement.importance !== "ignore" &&
+      requirement.importance !== "dealbreaker" &&
+      !isRequirementComplete(requirement),
   );
   const columns = Math.max(entries.length, 1);
   const scrolls = entries.length > 2 || homes.length > 2;
@@ -321,6 +345,25 @@ export function CompareScreen({
     gridTemplateColumns: `88px repeat(${columns}, minmax(136px, 1fr))`,
     minWidth: 88 + columns * 136,
   };
+
+  async function activateReady() {
+    if (readyDrafts.length === 0 || activateBusy) return;
+    setActivateBusy(true);
+    setActivateNotice("");
+    const result = await activateRequirements(
+      readyDrafts.map((requirement) => requirement.id),
+    );
+    setActivateBusy(false);
+    if (!result.ok) {
+      setActivateNotice(t("compare.activateError"));
+      return;
+    }
+    setActivateNotice(
+      result.count === 1
+        ? t("compare.activatedOne")
+        : t("compare.activated", { count: result.count }),
+    );
+  }
 
   function toggleSelected(homeId: string) {
     const next = toggleComparisonId(homes, selectedIds, homeId, 2);
@@ -451,7 +494,9 @@ export function CompareScreen({
       render: (entry) =>
         entry.score.mustTotal === 0 ? (
           <span className="text-[9.5px] leading-4 text-muted">
-            {t("compare.noMustConfigured")}
+            {hasScoredRequirements
+              ? t("compare.noMustConfigured")
+              : t("compare.setupRequired")}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 text-[10.5px] tabular-nums text-ink/85">
@@ -510,7 +555,11 @@ export function CompareScreen({
     {
       label: t("compare.matchStatus"),
       render: (entry) => {
-        const status = matchStatus(entry.score, hasScoredRequirements);
+        const status = matchStatus(
+          entry.score,
+          hasScoredRequirements,
+          hasConfigurationGaps,
+        );
         return (
           <span
             className={`rounded-full px-2 py-0.5 text-[8.5px] uppercase tracking-[0.08em] ${matchStatusStyle(status)}`}
@@ -709,30 +758,63 @@ export function CompareScreen({
         )}
       </header>
 
-      {!hasScoredRequirements && (
+      {ready && !hasScoredRequirements && (
         <div className="mx-6 mt-4 rounded-2xl border border-gold/30 bg-gold/10 px-4 py-3.5">
           <p className="text-[12px] font-medium text-ink">
-            {draftRequirements > 0
-              ? t("compare.draftTitle")
-              : t("compare.noConfiguredTitle")}
+            {readyDrafts.length > 0
+              ? t("compare.activateReadyTitle")
+              : configNeeded.length > 0
+                ? t("compare.statusConfigNeeded")
+                : t("compare.noConfiguredTitle")}
           </p>
           <p className="mt-1 text-[10.5px] leading-4 text-muted">
-            {draftRequirements > 0
-              ? t("compare.draftBody")
-              : t("compare.noConfiguredBody")}
+            {readyDrafts.length > 0
+              ? t("compare.activateReadyBody")
+              : configNeeded.length > 0
+                ? t("compare.configIssue.missing-expected")
+                : t("compare.noConfiguredBody")}
           </p>
           {draftRequirements > 0 && (
             <p className="mt-1.5 inline-flex rounded-full bg-white/70 px-2.5 py-1 text-[9.5px] font-medium text-[#6b5535]">
               {t("compare.draftCount", { count: draftRequirements })}
             </p>
           )}
-          <button
-            type="button"
-            onClick={onOpenWishlist}
-            className="mt-2.5 inline-flex min-h-9 items-center rounded-full border border-olive/25 bg-white/70 px-3 text-[10px] font-medium text-olive"
-          >
-            {t("compare.reviewWishlist")}
-          </button>
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            {readyDrafts.length > 0 && (
+              <button
+                type="button"
+                onClick={activateReady}
+                disabled={activateBusy}
+                className="inline-flex min-h-9 items-center rounded-full bg-olive px-3 text-[10px] font-medium text-cream disabled:opacity-50"
+              >
+                {readyDrafts.length === 1
+                  ? t("compare.activateReadyOne")
+                  : t("compare.activateReadyButton", {
+                      count: readyDrafts.length,
+                    })}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onOpenWishlist}
+              className="inline-flex min-h-9 items-center rounded-full border border-olive/25 bg-white/70 px-3 text-[10px] font-medium text-olive"
+            >
+              {t("compare.reviewWishlist")}
+            </button>
+          </div>
+          {activateNotice && (
+            <p
+              role="status"
+              className={[
+                "mt-2 text-[10px]",
+                activateNotice === t("compare.activateError")
+                  ? "text-clay"
+                  : "text-olive",
+              ].join(" ")}
+            >
+              {activateNotice}
+            </p>
+          )}
         </div>
       )}
 
@@ -1105,7 +1187,8 @@ export function CompareScreen({
                     {(entry.score.score === null ||
                       entry.score.mustUnknown.length > 0 ||
                       entry.score.coverage < 100 ||
-                      entry.score.dealbreakersUnknown.length > 0) && (
+                      entry.score.dealbreakersUnknown.length > 0 ||
+                      hasConfigurationGaps) && (
                       <button
                         type="button"
                         onClick={() => setMissingInfoFor(entry.home.id)}
@@ -1153,10 +1236,11 @@ export function CompareScreen({
         rows={missingInfoRows}
         hasScoreableRequirements={hasScoredRequirements}
         onClose={() => setMissingInfoFor(null)}
-        onOpenWishlist={() => {
+        onEditRequirement={(requirementId) => {
           setMissingInfoFor(null);
-          onOpenWishlist();
+          onOpenRequirement(requirementId);
         }}
+        onActivate={activateRequirements}
         onEditProperty={(homeId) => {
           setMissingInfoFor(null);
           onEditProperty(homeId);
@@ -1225,14 +1309,31 @@ function SummaryLine({
   );
 }
 
+function configIssueText(
+  issue: NonNullable<EvaluationRow["configIssue"]>,
+  t: ReturnType<typeof useI18n>["t"],
+) {
+  switch (issue) {
+    case "missing-feature":
+      return t("compare.configIssue.missing-feature");
+    case "missing-operator":
+      return t("compare.configIssue.missing-operator");
+    case "invalid-expected":
+      return t("compare.configIssue.invalid-expected");
+    default:
+      return t("compare.configIssue.missing-expected");
+  }
+}
+
 function MissingInfoSheet({
   open,
   entry,
   rows,
   hasScoreableRequirements,
   onClose,
-  onOpenWishlist,
   onEditProperty,
+  onEditRequirement,
+  onActivate,
   onEvaluate,
 }: {
   open: boolean;
@@ -1240,14 +1341,68 @@ function MissingInfoSheet({
   rows: EvaluationRow[];
   hasScoreableRequirements: boolean;
   onClose: () => void;
-  onOpenWishlist: () => void;
   onEditProperty: (homeId: string) => void;
+  onEditRequirement: (requirementId: string) => void;
+  onActivate: (
+    requirementIds: string[],
+  ) => Promise<{ ok: boolean; count: number; error?: string }>;
   onEvaluate: (homeId: string) => void;
 }) {
   const { t, locale } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
   if (!entry) return null;
 
-  const status = matchStatus(entry.score, hasScoreableRequirements);
+  const hasConfigurationGaps = rows.some(
+    (row) =>
+      row.configIssue &&
+      row.requirement.importance !== "dealbreaker",
+  );
+  const status = matchStatus(
+    entry.score,
+    hasScoreableRequirements,
+    hasConfigurationGaps,
+  );
+  const groups = (
+    [
+      { id: "must", label: t("compare.groupMust"), items: [] as EvaluationRow[] },
+      { id: "nice", label: t("compare.groupNice"), items: [] as EvaluationRow[] },
+      {
+        id: "dealbreaker",
+        label: t("compare.groupDealbreakers"),
+        items: [] as EvaluationRow[],
+      },
+    ]
+  ).map((group) => ({
+    ...group,
+    items: rows.filter(
+      (row) => row.requirement.importance === group.id,
+    ),
+  }));
+
+  const readyIds = rows
+    .filter(
+      (row) =>
+        !row.configIssue && row.requirement.configured === false,
+    )
+    .map((row) => row.requirement.id);
+
+  async function activate(ids: string[]) {
+    if (ids.length === 0 || busy) return;
+    setBusy(true);
+    setMessage("");
+    const result = await onActivate(ids);
+    setBusy(false);
+    if (!result.ok) {
+      setMessage(t("compare.activateError"));
+      return;
+    }
+    setMessage(
+      result.count === 1
+        ? t("compare.activatedOne")
+        : t("compare.activated", { count: result.count }),
+    );
+  }
 
   return (
     <Sheet
@@ -1288,6 +1443,36 @@ function MissingInfoSheet({
         </span>
       </div>
 
+      {readyIds.length > 0 && (
+        <div className="mt-3 rounded-2xl border border-olive/20 bg-olive/[0.05] px-3.5 py-3">
+          <p className="text-[10px] leading-4 text-ink">
+            {t("compare.activateReadyTitle")} {t("compare.activateReadyBody")}
+          </p>
+          <button
+            type="button"
+            onClick={() => activate(readyIds)}
+            disabled={busy}
+            className="mt-2 min-h-9 rounded-full bg-olive px-3 text-[10px] font-medium text-cream disabled:opacity-50"
+          >
+            {readyIds.length === 1
+              ? t("compare.activateReadyOne")
+              : t("compare.activateReadyButton", { count: readyIds.length })}
+          </button>
+        </div>
+      )}
+
+      {message && (
+        <p
+          role="status"
+          className={[
+            "mt-2 text-[10px]",
+            message === t("compare.activateError") ? "text-clay" : "text-olive",
+          ].join(" ")}
+        >
+          {message}
+        </p>
+      )}
+
       {rows.length === 0 ? (
         <div className="mt-4 rounded-2xl border border-line bg-parchment/60 px-4 py-4">
           <p className="text-[12px] font-medium text-ink">
@@ -1298,87 +1483,115 @@ function MissingInfoSheet({
           </p>
         </div>
       ) : (
-        <ul className="mt-3 space-y-2">
-          {rows.map((row) => {
-            const configured = row.requirement.configured !== false;
-            const displayStatus = requirementDisplayStatus({
-              configured,
-              resolved: row.resolved,
-            });
-            return (
-              <li
-                key={row.requirement.id}
-                className="rounded-2xl border border-line/80 bg-white/60 px-3.5 py-3"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="min-w-0 flex-1 text-[11.5px] font-medium leading-4 text-ink">
-                    {translateRequirementName(
-                      row.requirement.name,
-                      locale,
-                      Boolean(row.requirement.custom),
-                    )}
-                  </p>
-                  <span
-                    className={`max-w-[58%] shrink-0 whitespace-normal rounded-full px-2 py-0.5 text-right text-[8px] uppercase leading-[1.35] tracking-[0.06em] ${requirementStatusStyle(displayStatus)}`}
-                  >
-                    {t(requirementStatusKey(displayStatus))}
-                  </span>
-                </div>
-
-                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
-                  <div>
-                    <dt className="text-[8.5px] uppercase tracking-[0.1em] text-muted">
-                      {t("compare.requiredCondition")}
-                    </dt>
-                    <dd className="mt-0.5 text-[10.5px] leading-4 text-ink">
-                      {requiredCondition(row.requirement, locale, t)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[8.5px] uppercase tracking-[0.1em] text-muted">
-                      {t("compare.knownValue")}
-                    </dt>
-                    <dd className="mt-0.5 text-[10.5px] leading-4 text-ink">
-                      {factValueLabel(
-                        row.actual,
-                        row.requirement.featureKey,
-                        locale,
-                        t,
-                      )}
-                    </dd>
-                  </div>
-                </dl>
-
-                <div className="mt-2 flex items-center justify-between gap-2 border-t border-line/60 pt-2">
-                  <p className="min-w-0 text-[9.5px] leading-4 text-muted">
-                    {!configured
-                      ? t("compare.actionConfigure")
-                      : row.resolved === "unknown"
-                        ? t("compare.actionAddDetails")
-                        : t("compare.actionNone")}
-                  </p>
-                  {!configured ? (
-                    <button
-                      type="button"
-                      onClick={onOpenWishlist}
-                      className="min-h-8 shrink-0 rounded-full border border-olive/25 bg-white/70 px-2.5 text-[9px] font-medium text-olive"
+        groups
+          .filter((group) => group.items.length > 0)
+          .map((group) => (
+            <section key={group.id} className="mt-4">
+              <p className="text-[9px] font-medium uppercase tracking-[0.16em] text-muted">
+                {group.label} · {group.items.length}
+              </p>
+              <ul className="mt-2 space-y-2">
+                {group.items.map((row) => {
+                  const complete = row.configIssue === null;
+                  const configured = row.requirement.configured !== false;
+                  const displayStatus = requirementDisplayStatus({
+                    complete,
+                    configured,
+                    resolved: row.resolved,
+                  });
+                  return (
+                    <li
+                      key={row.requirement.id}
+                      className="rounded-2xl border border-line/80 bg-white/60 px-3.5 py-3"
                     >
-                      {t("compare.reviewRequirement")}
-                    </button>
-                  ) : row.resolved === "unknown" ? (
-                    <button
-                      type="button"
-                      onClick={() => onEditProperty(entry.home.id)}
-                      className="min-h-8 shrink-0 rounded-full border border-olive/25 bg-white/70 px-2.5 text-[9px] font-medium text-olive"
-                    >
-                      {t("compare.addDetails")}
-                    </button>
-                  ) : null}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="min-w-0 flex-1 text-[11.5px] font-medium leading-4 text-ink">
+                          {translateRequirementName(
+                            row.requirement.name,
+                            locale,
+                            Boolean(row.requirement.custom),
+                          )}
+                        </p>
+                        <span
+                          className={`max-w-[58%] shrink-0 whitespace-normal rounded-full px-2 py-0.5 text-right text-[8px] uppercase leading-[1.35] tracking-[0.06em] ${requirementStatusStyle(displayStatus)}`}
+                        >
+                          {t(requirementStatusKey(displayStatus))}
+                        </span>
+                      </div>
+
+                      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+                        <div>
+                          <dt className="text-[8.5px] uppercase tracking-[0.1em] text-muted">
+                            {t("compare.requiredCondition")}
+                          </dt>
+                          <dd className="mt-0.5 text-[10.5px] leading-4 text-ink">
+                            {requiredCondition(row.requirement, locale, t)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-[8.5px] uppercase tracking-[0.1em] text-muted">
+                            {t("compare.knownValue")}
+                          </dt>
+                          <dd className="mt-0.5 text-[10.5px] leading-4 text-ink">
+                            {factValueLabel(
+                              row.actual,
+                              row.requirement.featureKey,
+                              locale,
+                              t,
+                            )}
+                          </dd>
+                        </div>
+                      </dl>
+
+                      <div className="mt-2 flex items-center justify-between gap-2 border-t border-line/60 pt-2">
+                        <p className="min-w-0 text-[9.5px] leading-4 text-muted">
+                          {row.configIssue
+                            ? configIssueText(row.configIssue, t)
+                            : !configured
+                              ? row.automatic === "met"
+                                ? t("compare.readyWouldMeet")
+                                : row.automatic === "not-met"
+                                  ? t("compare.readyWouldNotMeet")
+                                  : t("compare.statusReady")
+                              : row.resolved === "unknown"
+                                ? t("compare.actionAddDetails")
+                                : t("compare.actionNone")}
+                        </p>
+                        {row.configIssue ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onEditRequirement(row.requirement.id)
+                            }
+                            className="min-h-8 shrink-0 rounded-full border border-olive/25 bg-white/70 px-2.5 text-[9px] font-medium text-olive"
+                          >
+                            {t("compare.actionEditRequirement")}
+                          </button>
+                        ) : !configured ? (
+                          <button
+                            type="button"
+                            onClick={() => activate([row.requirement.id])}
+                            disabled={busy}
+                            className="min-h-8 shrink-0 rounded-full border border-olive/25 bg-white/70 px-2.5 text-[9px] font-medium text-olive disabled:opacity-50"
+                          >
+                            {t("compare.actionActivate")}
+                          </button>
+                        ) : row.resolved === "unknown" ? (
+                          <button
+                            type="button"
+                            onClick={() => onEditProperty(entry.home.id)}
+                            className="min-h-8 shrink-0 rounded-full border border-olive/25 bg-white/70 px-2.5 text-[9px] font-medium text-olive"
+                          >
+                            {t("compare.addDetails")}
+                          </button>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))
       )}
     </Sheet>
   );

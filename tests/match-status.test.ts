@@ -18,6 +18,17 @@ const beds = createRequirement({
   importance: "must",
 });
 
+const garage = createRequirement({
+  id: "garage",
+  wishlistId: "w1",
+  name: "Garage for 2 cars",
+  category: "bedrooms",
+  featureKey: "garageCars",
+  type: "min",
+  expectedValue: 2,
+  importance: "nice",
+});
+
 const dealbreaker = createRequirement({
   id: "flood",
   wishlistId: "w1",
@@ -35,10 +46,18 @@ describe("match status", () => {
     expect(matchStatus(scoreRequirements([], {}), false)).toBe("not-ready");
   });
 
-  it("reports partial when requirements exist but facts are unknown", () => {
+  it("reports insufficient property information when no fact is known", () => {
     const result = scoreRequirements([beds], {});
-    expect(matchStatus(result, true)).toBe("partial");
+    expect(matchStatus(result, true)).toBe("insufficient");
     expect(result.coverage).toBe(0);
+  });
+
+  it("reports partial when some requirements are known and others are not", () => {
+    const result = scoreRequirements([beds, garage], { beds: 5 });
+    expect(result.score).not.toBeNull();
+    expect(result.coverage).toBeGreaterThan(0);
+    expect(result.coverage).toBeLessThan(100);
+    expect(matchStatus(result, true)).toBe("partial");
   });
 
   it("reports scored only when coverage is complete", () => {
@@ -57,6 +76,13 @@ describe("match status", () => {
     expect(matchStatus(unknownDealbreaker, true)).toBe("partial");
   });
 
+  it("stays partial when another must-have still needs configuration", () => {
+    const result = scoreRequirements([beds], { beds: 5 });
+    expect(result.coverage).toBe(100);
+    expect(matchStatus(result, true, true)).toBe("partial");
+    expect(matchStatus(result, true, false)).toBe("scored");
+  });
+
   it("reports disqualified when a confirmed dealbreaker fails", () => {
     const result = scoreRequirements(
       [beds, dealbreaker],
@@ -66,13 +92,28 @@ describe("match status", () => {
     expect(matchStatus(result, true)).toBe("disqualified");
   });
 
-  it("treats draft requirements as incomplete instead of failed", () => {
+  it("distinguishes ready drafts from incomplete requirements", () => {
     const draft: WishlistRequirement = { ...beds, configured: false };
     expect(
-      requirementDisplayStatus({ configured: draft.configured !== false, resolved: "met" }),
-    ).toBe("incomplete");
+      requirementDisplayStatus({
+        complete: true,
+        configured: draft.configured !== false,
+        resolved: "met",
+      }),
+    ).toBe("ready");
     expect(
-      requirementDisplayStatus({ configured: true, resolved: "unknown" }),
+      requirementDisplayStatus({
+        complete: false,
+        configured: draft.configured !== false,
+        resolved: "unknown",
+      }),
+    ).toBe("config-needed");
+    expect(
+      requirementDisplayStatus({
+        complete: true,
+        configured: true,
+        resolved: "unknown",
+      }),
     ).toBe("unknown");
   });
 });

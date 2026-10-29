@@ -195,11 +195,12 @@ export const en = {
   "compare.currentWishlist": "Compared with {name}",
   "compare.estimated": "Estimated",
   "compare.noPrice": "Price TBD",
-  "matchStatus.notReady": "Wishlist not ready",
+  "matchStatus.notReady": "Wishlist setup required",
   "matchStatus.partial": "Partially evaluated",
   "matchStatus.scored": "Scored",
-  "matchStatus.disqualified": "Disqualified",
+  "matchStatus.disqualified": "Confirmed dealbreaker",
   "compare.matchStatus": "Match status",
+  "compare.setupRequired": "Setup required",
   "compare.viewMissing": "View Missing Information →",
   "compare.missingInformationTitle": "Missing information for {address}",
   "compare.requiredCondition": "Required",
@@ -220,6 +221,32 @@ export const en = {
   "compare.draftBody":
     "Review and include them in scoring so saved property facts can produce a match.",
   "compare.draftCount": "{count} draft requirements",
+  "compare.statusConfigNeeded": "Wishlist configuration needed",
+  "compare.statusReady": "Ready to activate",
+  "compare.actionEditRequirement": "Edit requirement",
+  "compare.actionActivate": "Activate",
+  "compare.configIssue.missing-feature": "Feature identifier is missing.",
+  "compare.configIssue.missing-operator":
+    "Comparison operator is missing. Open the requirement to choose one.",
+  "compare.configIssue.missing-expected":
+    "Expected value is missing. Add the condition this home must meet.",
+  "compare.configIssue.invalid-expected":
+    "The expected value is invalid. Check the range or number.",
+  "compare.readyWouldMeet": "Saved property facts would meet this requirement.",
+  "compare.readyWouldNotMeet":
+    "Saved property facts would not meet this requirement.",
+  "compare.groupMust": "Must-Haves",
+  "compare.groupNice": "Nice-To-Haves",
+  "compare.groupDealbreakers": "Dealbreakers",
+  "compare.activateReadyTitle": "Some valid requirements are not in scoring.",
+  "compare.activateReadyBody":
+    "These requirements already have a condition and expected value. Activate them in one step so saved property facts can be evaluated.",
+  "compare.activateReadyButton": "Activate {count} requirements",
+  "compare.activateReadyOne": "Activate 1 requirement",
+  "compare.activated": "{count} requirements activated.",
+  "compare.activatedOne": "1 requirement activated.",
+  "compare.activateError": "Could not activate requirements. Please try again.",
+  "matchStatus.insufficient": "Insufficient property information",
   "compare.noRequirementsTitle": "No wishlist requirements yet.",
   "compare.noRequirementsBody":
     "Add requirements in the Wishlist tab, then return here to evaluate this home.",
@@ -417,10 +444,18 @@ export const en = {
   "wishlist.excludeHint": "Separate multiple cities with commas.",
   "wishlist.importance": "Importance",
   "wishlist.weight": "Custom weight (optional)",
-  "wishlist.reviewed": "Reviewed and included in scoring",
+  "wishlist.reviewed": "Include in scoring",
+  "wishlist.readyToActivate": "{count} valid requirements are not in scoring.",
+  "wishlist.activateReady": "Activate {count} requirements",
+  "wishlist.activateReadyOne": "Activate 1 requirement",
+  "wishlist.activated": "{count} requirements activated.",
+  "wishlist.activatedOne": "1 requirement activated.",
+  "wishlist.activateError":
+    "Could not activate requirements. Your changes were not applied.",
   "wishlist.deleteRequirement": "Delete requirement",
   "wishlist.saveRequirement": "Save requirement",
-  "wishlist.draft": "Draft",
+  "wishlist.draft": "Not in scoring",
+  "wishlist.configNeeded": "Needs configuration",
   "wishlist.configured": "Configured",
   "wishlist.noRequirements": "No preferences in this wishlist yet.",
   "wishlist.noRequirementsBody":
@@ -1060,11 +1095,12 @@ const es: Record<TranslationKey, string> = {
   "compare.currentWishlist": "Comparada con {name}",
   "compare.estimated": "Estimado",
   "compare.noPrice": "Precio por confirmar",
-  "matchStatus.notReady": "Lista no lista",
+  "matchStatus.notReady": "Configuración de la lista pendiente",
   "matchStatus.partial": "Evaluación parcial",
   "matchStatus.scored": "Evaluada",
-  "matchStatus.disqualified": "Descalificada",
+  "matchStatus.disqualified": "Condición eliminatoria confirmada",
   "compare.matchStatus": "Estado de compatibilidad",
+  "compare.setupRequired": "Configuración pendiente",
   "compare.viewMissing": "Ver información faltante →",
   "compare.missingInformationTitle": "Información faltante para {address}",
   "compare.requiredCondition": "Requerido",
@@ -1085,6 +1121,35 @@ const es: Record<TranslationKey, string> = {
   "compare.draftBody":
     "Revísalas e inclúyelas en la evaluación para que los datos de las casas produzcan una compatibilidad.",
   "compare.draftCount": "{count} preferencias en borrador",
+  "compare.statusConfigNeeded": "Configuración de la preferencia pendiente",
+  "compare.statusReady": "Lista para activar",
+  "compare.actionEditRequirement": "Editar preferencia",
+  "compare.actionActivate": "Activar",
+  "compare.configIssue.missing-feature": "Falta el identificador de la característica.",
+  "compare.configIssue.missing-operator":
+    "Falta el operador de comparación. Abre la preferencia para elegirlo.",
+  "compare.configIssue.missing-expected":
+    "Falta el valor esperado. Agrega la condición que debe cumplir la casa.",
+  "compare.configIssue.invalid-expected":
+    "El valor esperado no es válido. Revisa el rango o el número.",
+  "compare.readyWouldMeet":
+    "Los datos guardados de la propiedad cumplirían esta preferencia.",
+  "compare.readyWouldNotMeet":
+    "Los datos guardados de la propiedad no cumplirían esta preferencia.",
+  "compare.groupMust": "Imprescindibles",
+  "compare.groupNice": "Deseos",
+  "compare.groupDealbreakers": "Condiciones eliminatorias",
+  "compare.activateReadyTitle":
+    "Algunas preferencias válidas no están en la evaluación.",
+  "compare.activateReadyBody":
+    "Estas preferencias ya tienen condición y valor esperado. Actívalas en un solo paso para evaluar los datos guardados.",
+  "compare.activateReadyButton": "Activar {count} preferencias",
+  "compare.activateReadyOne": "Activar 1 preferencia",
+  "compare.activated": "{count} preferencias activadas.",
+  "compare.activatedOne": "1 preferencia activada.",
+  "compare.activateError":
+    "No se pudieron activar las preferencias. Inténtalo de nuevo.",
+  "matchStatus.insufficient": "Información de la propiedad insuficiente",
   "compare.noRequirementsTitle": "Aún no hay preferencias.",
   "compare.noRequirementsBody":
     "Agrega preferencias en la pestaña Lista y vuelve aquí para evaluar esta casa.",
@@ -1282,10 +1347,19 @@ const es: Record<TranslationKey, string> = {
   "wishlist.excludeHint": "Separa varias ciudades con comas.",
   "wishlist.importance": "Importancia",
   "wishlist.weight": "Peso personalizado (opcional)",
-  "wishlist.reviewed": "Revisada e incluida en la evaluación",
+  "wishlist.reviewed": "Incluir en la evaluación",
+  "wishlist.readyToActivate":
+    "{count} preferencias válidas no están en la evaluación.",
+  "wishlist.activateReady": "Activar {count} preferencias",
+  "wishlist.activateReadyOne": "Activar 1 preferencia",
+  "wishlist.activated": "{count} preferencias activadas.",
+  "wishlist.activatedOne": "1 preferencia activada.",
+  "wishlist.activateError":
+    "No se pudieron activar las preferencias. Tus cambios no se aplicaron.",
   "wishlist.deleteRequirement": "Eliminar preferencia",
   "wishlist.saveRequirement": "Guardar preferencia",
-  "wishlist.draft": "Borrador",
+  "wishlist.draft": "Sin evaluar",
+  "wishlist.configNeeded": "Falta configurar",
   "wishlist.configured": "Configurada",
   "wishlist.noRequirements": "Aún no hay preferencias en esta lista.",
   "wishlist.noRequirementsBody":

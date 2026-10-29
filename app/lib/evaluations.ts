@@ -2,6 +2,11 @@ import {
   evaluateRequirement,
   type EvaluationState,
 } from "./scoring";
+import {
+  isRequirementScoreable,
+  requirementConfigIssue,
+  type RequirementConfigIssue,
+} from "./requirement-config";
 import type {
   PropertyEvaluation,
   PropertyFacts,
@@ -20,6 +25,8 @@ export type EvaluationRow = {
   /** True when a manual answer disagrees with verified property data. */
   conflict: boolean;
   actual: unknown;
+  /** Why the requirement cannot be scored, or null when it is complete. */
+  configIssue: RequirementConfigIssue | null;
 };
 
 export function evaluationId(
@@ -62,8 +69,8 @@ export function buildEvaluationRows(
   return requirements
     .filter(
       (requirement) =>
-        (options.includeUnconfigured || requirement.configured !== false) &&
-        requirement.importance !== "ignore",
+        requirement.importance !== "ignore" &&
+        (options.includeUnconfigured || isRequirementScoreable(requirement)),
     )
     .map((requirement) => {
       const automatic = evaluateRequirement(requirement, facts);
@@ -83,6 +90,7 @@ export function buildEvaluationRows(
           manualState !== null ? "manual" : automatic === "unknown" ? "none" : "property",
         conflict,
         actual: facts[requirement.featureKey] ?? null,
+        configIssue: requirementConfigIssue(requirement),
       };
     });
 }

@@ -21,6 +21,7 @@ import { budgetEstimateInfo, type BudgetEstimateInfo } from "./budget-estimate";
 import { calculateBudget, inputsForProperty } from "./finance";
 import { homePatchToRow, type Home } from "./homes";
 import { factsFromHome } from "./property-facts";
+import { isRequirementComplete } from "./requirement-config";
 import {
   buildEvaluationRows,
   evaluationId,
@@ -246,6 +247,9 @@ type AppData = Snapshot & {
     patch: Partial<WishlistRequirement>,
   ) => void;
   removeRequirement: (requirementId: string) => void;
+  activateRequirements: (
+    requirementIds: string[],
+  ) => Promise<{ ok: boolean; count: number; error?: string }>;
   bulkSetImportance: (
     requirementIds: string[],
     importance: WishlistRequirement["importance"],
@@ -2034,6 +2038,61 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [data.evaluations, ownerId, pushEvaluation],
   );
 
+  const activateRequirements = useCallback(
+    async (
+      requirementIds: string[],
+    ): Promise<{ ok: boolean; count: number; error?: string }> => {
+      const active = pickActiveWishlist(data.wishlists);
+      const targets = data.requirements.filter(
+        (requirement) =>
+          requirementIds.includes(requirement.id) &&
+          requirement.wishlistId === active?.id &&
+          requirement.configured === false &&
+          requirement.importance !== "ignore" &&
+          isRequirementComplete(requirement),
+      );
+      if (targets.length === 0) {
+        return { ok: true, count: 0 };
+      }
+
+      const previous = new Map(
+        targets.map((requirement) => [requirement.id, requirement]),
+      );
+      const timestamp = nowIso();
+
+      setData((current) => ({
+        ...current,
+        requirements: current.requirements.map((requirement) =>
+          previous.has(requirement.id)
+            ? { ...requirement, configured: true, updatedAt: timestamp }
+            : requirement,
+        ),
+      }));
+
+      if (v2Synced) {
+        const { error } = await supabase!
+          .from("wishlist_requirements")
+          .update({ configured: true, updated_at: timestamp })
+          .in(
+            "id",
+            targets.map((requirement) => requirement.id),
+          );
+        if (error) {
+          setData((current) => ({
+            ...current,
+            requirements: current.requirements.map((requirement) =>
+              previous.get(requirement.id) ?? requirement,
+            ),
+          }));
+          return { ok: false, count: 0, error: error.message };
+        }
+      }
+
+      return { ok: true, count: targets.length };
+    },
+    [data.requirements, data.wishlists, v2Synced],
+  );
+
   const bulkSetImportance = useCallback(
     async (
       requirementIds: string[],
@@ -2055,6 +2114,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         targets.map((requirement) => [requirement.id, requirement]),
       );
       const timestamp = nowIso();
+      const completeIds = targets
+        .filter((requirement) => isRequirementComplete(requirement))
+        .map((requirement) => requirement.id);
 
       setData((current) => ({
         ...current,
@@ -2063,7 +2125,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             ? {
                 ...requirement,
                 importance,
-                configured: true,
+                configured:
+                  completeIds.includes(requirement.id) ||
+                  requirement.configured,
                 updatedAt: timestamp,
               }
             : requirement,
@@ -2073,7 +2137,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       if (v2Synced) {
         const { error } = await supabase!
           .from("wishlist_requirements")
-          .update({ importance, configured: true, updated_at: timestamp })
+          .update({ importance, updated_at: timestamp })
           .in(
             "id",
             targets.map((requirement) => requirement.id),
@@ -2086,6 +2150,21 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             ),
           }));
           return { ok: false, error: error.message };
+        }
+        if (completeIds.length > 0) {
+          const activation = await supabase!
+            .from("wishlist_requirements")
+            .update({ configured: true, updated_at: timestamp })
+            .in("id", completeIds);
+          if (activation.error) {
+            setData((current) => ({
+              ...current,
+              requirements: current.requirements.map((requirement) =>
+                previous.get(requirement.id) ?? requirement,
+              ),
+            }));
+            return { ok: false, error: activation.error.message };
+          }
         }
       }
 
@@ -2592,6 +2671,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       addRequirement,
       updateRequirement,
       removeRequirement,
+      activateRequirements,
       bulkSetImportance,
       bulkRemoveRequirements,
       restoreRequirements,
@@ -2626,6 +2706,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     addRequirement,
     updateRequirement,
     removeRequirement,
+    activateRequirements,
     bulkSetImportance,
     bulkRemoveRequirements,
     restoreRequirements,

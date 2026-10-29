@@ -8,6 +8,7 @@ import {
   type WishlistCategory,
   type WishlistRequirement,
 } from "./v2-types";
+import { isRequirementComplete } from "./requirement-config";
 import type { WishlistItem } from "./types";
 
 export function newId(prefix = "id") {
@@ -636,7 +637,8 @@ export function groupByCategory(requirements: WishlistRequirement[]) {
 export function wishlistSetupProgress(requirements: WishlistRequirement[]) {
   const total = requirements.length;
   const configured = requirements.filter(
-    (requirement) => requirement.configured,
+    (requirement) =>
+      requirement.configured && isRequirementComplete(requirement),
   ).length;
   return {
     configured,

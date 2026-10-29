@@ -122,6 +122,51 @@ describe("guided evaluations", () => {
     expect(draftRow?.resolved).toBe("met");
   });
 
+  it("reports configuration gaps separately from missing property facts", () => {
+    const incomplete: WishlistRequirement = {
+      ...requirements[0],
+      id: "incomplete",
+      expectedValue: null,
+    };
+    const rows = buildEvaluationRows(
+      [incomplete, ...requirements.slice(1)],
+      facts,
+      [],
+      "home-1",
+      "w1",
+      { includeUnconfigured: true },
+    );
+    const row = rows.find((entry) => entry.requirement.id === "incomplete");
+    expect(row?.configIssue).toBe("missing-expected");
+    expect(row?.actual).toBe(4);
+    expect(row?.resolved).toBe("unknown");
+  });
+
+  it("evaluates a valid draft without activating it", () => {
+    const draft: WishlistRequirement = {
+      ...requirements[0],
+      id: "draft-garage",
+      configured: false,
+      featureKey: "garageCars",
+      type: "min",
+      expectedValue: 2,
+    };
+    const rows = buildEvaluationRows(
+      [draft],
+      { garageCars: 3 },
+      [],
+      "home-1",
+      "w1",
+      { includeUnconfigured: true },
+    );
+    expect(rows[0]).toMatchObject({
+      configIssue: null,
+      automatic: "met",
+      resolved: "met",
+      source: "property",
+    });
+  });
+
   it("uses a manual answer when the property fact is unknown", () => {
     const rows = buildEvaluationRows(
       requirements,

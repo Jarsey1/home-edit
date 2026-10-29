@@ -6,6 +6,7 @@ import {
   type RequirementType,
   type WishlistRequirement,
 } from "./v2-types";
+import { isRequirementScoreable } from "./requirement-config";
 
 export type EvaluationState = "met" | "not-met" | "unknown";
 
@@ -238,10 +239,10 @@ function isDisqualifying(requirement: WishlistRequirement, state: EvaluationStat
  *
  * Match = weighted points earned / weighted points evaluated × 100
  *
- * Only configured must-have and nice-to-have requirements contribute to the
- * weighted score. Dealbreakers are hard filters and not important items are
- * excluded. Unknown values are included in the coverage denominator but never
- * in the evaluated denominator.
+ * Only configured, complete must-have and nice-to-have requirements contribute
+ * to the weighted score. Dealbreakers are hard filters and not important or
+ * incomplete items are excluded. Unknown values are included in the coverage
+ * denominator but never in the evaluated denominator.
  */
 export function scoreRequirements(
   requirements: WishlistRequirement[],
@@ -249,7 +250,7 @@ export function scoreRequirements(
   weights: ScoringWeights = DEFAULT_WEIGHTS,
   options: ScoreOptions = {},
 ): ScoreResult {
-  const active = requirements.filter((requirement) => requirement.configured !== false);
+  const active = requirements.filter(isRequirementScoreable);
   const skippedCount = requirements.length - active.length;
 
   if (active.length === 0) {

@@ -187,5 +187,11 @@ describe("wishlist management", () => {
     expect(progress.configured).toBe(3);
     expect(progress.total).toBe(withDrafts.length);
     expect(progress.percent).toBeCloseTo((3 / withDrafts.length) * 100, 6);
+
+    const withInvalid = withDrafts.map((entry, index) =>
+      index === 0 ? { ...entry, expectedValue: null } : entry,
+    );
+    const invalidProgress = wishlistSetupProgress(withInvalid);
+    expect(invalidProgress.configured).toBe(2);
   });
 });

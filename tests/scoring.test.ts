@@ -145,7 +145,7 @@ describe("match scoring", () => {
     const result = scoreRequirements(requirements, { pool: true, gated: false });
     expect(result.score).toBe(100);
     expect(result.totalCount).toBe(1);
-    expect(result.skippedCount).toBe(0);
+    expect(result.skippedCount).toBe(1);
   });
 
   it("skips unconfigured preferences until the user reviews them", () => {
@@ -187,5 +187,130 @@ describe("default requirements", () => {
     expect(requirements.every((entry) => entry.wishlistId === "wishlist-test")).toBe(
       true,
     );
+  });
+});
+
+
+describe("wishlist acceptance scenario", () => {
+  it("evaluates 4 beds, 2 garage spaces and central air automatically", () => {
+    const requirements = [
+      createRequirement({
+        id: "beds",
+        wishlistId: "acceptance",
+        name: "Minimum 4 bedrooms",
+        category: "bedrooms",
+        featureKey: "beds",
+        type: "min",
+        expectedValue: 4,
+        importance: "must",
+      }),
+      createRequirement({
+        id: "garage",
+        wishlistId: "acceptance",
+        name: "Minimum 2 garage spaces",
+        category: "bedrooms",
+        featureKey: "garageCars",
+        type: "min",
+        expectedValue: 2,
+        importance: "must",
+      }),
+      createRequirement({
+        id: "central-air",
+        wishlistId: "acceptance",
+        name: "Central air",
+        category: "condition",
+        featureKey: "centralAir",
+        type: "yes",
+        expectedValue: true,
+        importance: "must",
+      }),
+    ];
+    const facts: PropertyFacts = {
+      beds: 3,
+      garageCars: 3,
+      centralAir: true,
+    };
+
+    const result = scoreRequirements(requirements, facts);
+    expect(result.score).not.toBeNull();
+    expect(Math.round(result.score ?? 0)).toBe(67);
+    expect(result.coverage).toBe(100);
+    expect(result.mustTotal).toBe(3);
+    expect(result.mustMet.map((requirement) => requirement.id)).toEqual([
+      "garage",
+      "central-air",
+    ]);
+    expect(result.mustMissing.map((requirement) => requirement.id)).toEqual([
+      "beds",
+    ]);
+    expect(result.mustUnknown).toHaveLength(0);
+    expect(result.dealbreakersUnknown).toHaveLength(0);
+    expect(result.status).toBe("missing-must");
+  });
+
+  it("does not count unknown property values as failures", () => {
+    const requirements = [
+      createRequirement({
+        id: "garage",
+        wishlistId: "acceptance",
+        name: "Minimum 2 garage spaces",
+        category: "bedrooms",
+        featureKey: "garageCars",
+        type: "min",
+        expectedValue: 2,
+        importance: "must",
+      }),
+      createRequirement({
+        id: "central-air",
+        wishlistId: "acceptance",
+        name: "Central air",
+        category: "condition",
+        featureKey: "centralAir",
+        type: "yes",
+        expectedValue: true,
+        importance: "must",
+      }),
+    ];
+    const result = scoreRequirements(requirements, { garageCars: 3 });
+    expect(result.mustMet.map((requirement) => requirement.id)).toEqual([
+      "garage",
+    ]);
+    expect(result.mustUnknown.map((requirement) => requirement.id)).toEqual([
+      "central-air",
+    ]);
+    expect(result.mustMissing).toHaveLength(0);
+    expect(result.coverage).toBe(50);
+  });
+
+  it("excludes incomplete requirements instead of failing them", () => {
+    const requirements = [
+      createRequirement({
+        id: "beds",
+        wishlistId: "acceptance",
+        name: "Minimum 4 bedrooms",
+        category: "bedrooms",
+        featureKey: "beds",
+        type: "min",
+        expectedValue: null,
+        importance: "must",
+      }),
+      createRequirement({
+        id: "garage",
+        wishlistId: "acceptance",
+        name: "Minimum 2 garage spaces",
+        category: "bedrooms",
+        featureKey: "garageCars",
+        type: "min",
+        expectedValue: 2,
+        importance: "must",
+      }),
+    ];
+    const result = scoreRequirements(requirements, { beds: 3, garageCars: 3 });
+    expect(result.totalCount).toBe(1);
+    expect(result.mustMet.map((requirement) => requirement.id)).toEqual([
+      "garage",
+    ]);
+    expect(result.mustMissing).toHaveLength(0);
+    expect(result.coverage).toBe(100);
   });
 });
