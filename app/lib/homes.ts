@@ -120,7 +120,7 @@ export function formatPriceOrPending(value: number) {
 export function formatLotSize(squareFeet: number) {
   if (!Number.isFinite(squareFeet) || squareFeet <= 0) return "";
   const acres = squareFeet / 43_560;
-  if (acres < 0.1) {
+  if (acres < 0.25) {
     return `${Math.round(squareFeet).toLocaleString("en-US")} sq ft`;
   }
   return `${acres.toFixed(acres >= 1 ? 1 : 2)} ac`;

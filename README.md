@@ -104,10 +104,16 @@ construction and the last sale price is not the current asking price.
 
 Candidates are matched against the exact house number, street name and suffix,
 so a nearby `108th Terrace` can never fill in `108th Street`. Lookups are cached
-for 10 minutes. If `RENTCAST_API_KEY` is set, RentCast is tried only when the
-free county records have no match. Without a key (or with an inactive plan) the
-app simply reports that no public records were found and manual entry works as
+briefly. If `RENTCAST_API_KEY` is set, RentCast is tried only when the free
+county records have no match. Without a key (or with an inactive plan) the app
+simply reports that no public records were found and manual entry works as
 before.
+
+Facts are saved to Supabase with the home (beds, baths, square footage, lot,
+year built, property type and location). The lookup route reads the shared
+shortlist first, so any home that already has facts can be filled in again from
+Supabase on any device without calling the county. County records only fill gaps
+in older or partial rows.
 
 ## Working from another laptop
 
@@ -150,6 +156,7 @@ app/
     defaults.ts             starter data
     types.ts                persisted record types
     miami-dade-parcels.ts   Miami-Dade County parcel lookup (no key)
+    stored-properties.ts    reads saved facts back from Supabase
   api/
     address-search/         Photon-backed address suggestions
     property-lookup/        free county public records + optional fallback

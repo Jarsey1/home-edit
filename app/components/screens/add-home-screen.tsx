@@ -38,6 +38,8 @@ type SearchResponse = {
 
 type PropertyDetails = {
   address: string;
+  city?: string;
+  zip?: string;
   bedrooms: number | null;
   bathrooms: number | null;
   squareFootage: number | null;
@@ -269,6 +271,15 @@ export function AddHomeScreen({
     autoFilled.current = next;
     setLot(formatLotSize(details.lotSize ?? 0));
     setYearBuilt(details.yearBuilt ? String(details.yearBuilt) : "");
+
+    // Keep county city/ZIP when the user did not type one, so the saved home
+    // carries the full location from public records.
+    if (!city.trim() && details.city) {
+      const suffix = details.zip
+        ? `${details.city}, FL ${details.zip}`
+        : details.city;
+      setCity(suffix);
+    }
   }
 
   function resetLookup() {
@@ -432,6 +443,7 @@ export function AddHomeScreen({
       sqft: toNumber(sqft),
       lot,
       yearBuilt: toNumber(yearBuilt),
+      type: lookupDetails?.propertyType,
     });
 
     if (!home) {

@@ -3,6 +3,7 @@ import {
   lookupMiamiDadeParcel,
   type PublicRecordFacts,
 } from "../../lib/miami-dade-parcels";
+import { findStoredHome } from "../../lib/stored-properties";
 
 type RentCastProperty = {
   formattedAddress?: string;
@@ -24,7 +25,7 @@ type LookupResult = {
   unavailable?: boolean;
 };
 
-const CACHE_TTL_MS = 10 * 60 * 1000;
+const CACHE_TTL_MS = 60 * 1000;
 const cache = new Map<string, { at: number; result: LookupResult }>();
 
 function toNumber(value: unknown) {
@@ -132,6 +133,38 @@ async function lookupRentCast(
   }
 }
 
+function hasCompleteFacts(facts: PropertyDetails) {
+  return (
+    facts.bedrooms != null &&
+    facts.bathrooms != null &&
+    facts.squareFootage != null &&
+    facts.lotSize != null
+  );
+}
+
+/**
+ * Saved facts win because they may include corrections the user made. County
+ * data only fills the gaps in older rows.
+ */
+function mergeFacts(
+  stored: PropertyDetails,
+  county: PropertyDetails,
+): PropertyDetails {
+  return {
+    address: stored.address || county.address,
+    city: stored.city || county.city,
+    zip: stored.zip || county.zip,
+    bedrooms: stored.bedrooms ?? county.bedrooms,
+    bathrooms: stored.bathrooms ?? county.bathrooms,
+    squareFootage: stored.squareFootage ?? county.squareFootage,
+    lotSize: stored.lotSize ?? county.lotSize,
+    yearBuilt: stored.yearBuilt ?? county.yearBuilt,
+    propertyType: stored.propertyType || county.propertyType,
+    lastSaleDate: stored.lastSaleDate || county.lastSaleDate,
+    lastSalePrice: stored.lastSalePrice ?? county.lastSalePrice,
+  };
+}
+
 export async function GET(request: Request) {
   const address =
     new URL(request.url).searchParams
@@ -151,14 +184,32 @@ export async function GET(request: Request) {
 
   let providerFailed = false;
 
-  // Free county public records first — no key, no subscription.
+  // The shared shortlist is the first source of truth: facts saved with a home
+  // are available on every device without calling an outside service again.
+  const stored = await findStoredHome(address);
+  if (stored && hasCompleteFacts(stored.facts)) {
+    const result: LookupResult = { found: true, details: stored.facts };
+    remember(cacheKey, result);
+    return respond(result);
+  }
+
+  // Free county public records next — no key, no subscription.
   const county = await lookupMiamiDadeParcel(address);
   if (county.status === "found") {
-    const result: LookupResult = { found: true, details: county.facts };
+    const details = stored
+      ? mergeFacts(stored.facts, county.facts)
+      : county.facts;
+    const result: LookupResult = { found: true, details };
     remember(cacheKey, result);
     return respond(result);
   }
   if (county.status === "unavailable") providerFailed = true;
+
+  if (stored) {
+    const result: LookupResult = { found: true, details: stored.facts };
+    remember(cacheKey, result);
+    return respond(result);
+  }
 
   const rentcast = await lookupRentCast(address);
   if (rentcast?.found) {

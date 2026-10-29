@@ -46,6 +46,7 @@ export type NewHomeInput = {
   sqft: number;
   lot?: string;
   yearBuilt?: number;
+  type?: string;
 };
 
 type AppData = Snapshot & {
@@ -495,7 +496,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         yearBuilt: Number.isFinite(yearBuilt)
           ? Math.max(0, Math.round(yearBuilt))
           : 0,
-        type: "Single family",
+        type: input.type?.trim() || "Single family",
         daysOnMarket: 0,
         imageFilter: "none",
         description: "",
