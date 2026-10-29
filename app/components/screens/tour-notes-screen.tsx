@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
 import { useAppData } from "../../lib/app-data";
 import { formatPriceOrPending, type Home } from "../../lib/homes";
 import { useI18n, type TranslationKey } from "../../lib/i18n";
@@ -8,6 +8,7 @@ import { BackButton } from "../back-button";
 import { HouseIllustration } from "../house-illustration";
 import {
   CheckIcon,
+  ChevronDownIcon,
   PlusIcon,
   StarIcon,
   TrashIcon,
@@ -23,9 +24,13 @@ const RATING_KEYS: TranslationKey[] = [
 
 export function TourNotesScreen({
   home,
+  homes,
+  onSelectHome,
   onBack,
 }: {
   home: Home;
+  homes: Home[];
+  onSelectHome: (homeId: string) => void;
   onBack: () => void;
 }) {
   const { tourNotes, saveTourNote } = useAppData();
@@ -36,6 +41,18 @@ export function TourNotesScreen({
   const [pros, setPros] = useState<string[]>(existing?.pros ?? []);
   const [cons, setCons] = useState<string[]>(existing?.cons ?? []);
   const [saved, setSaved] = useState(Boolean(existing?.updatedAt));
+  const [pendingHomeId, setPendingHomeId] = useState<string | null>(null);
+  const homeSelectId = useId();
+
+  const dirty =
+    rating !== (existing?.rating ?? 0) ||
+    notes !== (existing?.notes ?? "") ||
+    JSON.stringify(pros) !== JSON.stringify(existing?.pros ?? []) ||
+    JSON.stringify(cons) !== JSON.stringify(existing?.cons ?? []);
+  const pendingHome =
+    pendingHomeId && pendingHomeId !== home.id
+      ? homes.find((option) => option.id === pendingHomeId)
+      : undefined;
 
   function updateRating(value: number) {
     setRating(value);
@@ -45,6 +62,24 @@ export function TourNotesScreen({
   function save() {
     saveTourNote(home.id, { rating, notes, pros, cons });
     setSaved(true);
+  }
+
+  function requestHomeChange(nextId: string) {
+    if (nextId === home.id) return;
+    // Switching remounts the editor for the new home, so keep unsaved work
+    // from disappearing without a decision.
+    if (dirty) {
+      setPendingHomeId(nextId);
+      return;
+    }
+    onSelectHome(nextId);
+  }
+
+  function confirmHomeChange() {
+    if (!pendingHomeId) return;
+    const nextId = pendingHomeId;
+    setPendingHomeId(null);
+    onSelectHome(nextId);
   }
 
   return (
@@ -62,7 +97,65 @@ export function TourNotesScreen({
       </header>
 
       <div className="px-6 pb-9">
-        <div className="mt-5 flex items-center gap-3 rounded-[22px] border border-line bg-white/50 p-3">
+        <label
+          htmlFor={homeSelectId}
+          className="mt-5 block text-[10px] font-medium uppercase tracking-[0.16em] text-muted"
+        >
+          {t("tour.home")}
+        </label>
+
+        <div className="relative mt-2">
+          <select
+            id={homeSelectId}
+            value={home.id}
+            onChange={(event) => requestHomeChange(event.target.value)}
+            aria-label={t("tour.chooseHome")}
+            className="w-full appearance-none rounded-2xl border border-line bg-white/60 py-3 pl-4 pr-10 text-[13px] text-ink outline-none transition-colors focus:border-olive/35 focus:ring-2 focus:ring-olive/15"
+          >
+            {homes.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.address}
+              </option>
+            ))}
+          </select>
+          <ChevronDownIcon className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
+        </div>
+
+        {pendingHome && (
+          <div
+            role="alertdialog"
+            aria-label={t("tour.switchTitle", {
+              address: pendingHome.address,
+            })}
+            className="mt-3 rounded-2xl border border-line bg-parchment px-4 py-3.5"
+          >
+            <p className="text-[12px] font-medium leading-5 text-ink">
+              {t("tour.switchTitle", { address: pendingHome.address })}
+            </p>
+            <p className="mt-1 text-[10.5px] leading-4 text-muted">
+              {t("tour.switchBody", { address: home.address })}
+            </p>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setPendingHomeId(null)}
+                className="flex-1 rounded-full border border-line bg-white/70 py-2.5 text-[11px] font-medium text-ink transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
+              >
+                {t("tour.keepEditing")}
+              </button>
+              <button
+                type="button"
+                onClick={confirmHomeChange}
+                className="flex-1 rounded-full bg-olive py-2.5 text-[11px] font-medium text-cream transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40"
+              >
+                {t("tour.switchHome")}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-3 flex items-center gap-3 rounded-[22px] border border-line bg-white/50 p-3">
           <div className="h-14 w-16 shrink-0 overflow-hidden rounded-xl border border-line/70">
             <div
               className="h-full w-full"

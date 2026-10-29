@@ -75,6 +75,13 @@ export default function HomeApp() {
                 <TourNotesScreen
                   key={overlayHome.id}
                   home={overlayHome}
+                  homes={homes}
+                  onSelectHome={(homeId) =>
+                    setOverlays((current) => [
+                      ...current.slice(0, -1),
+                      { type: "tour", homeId },
+                    ])
+                  }
                   onBack={goBack}
                 />
               )}
