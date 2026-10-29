@@ -93,7 +93,9 @@ export function EditPropertyScreen({
     }
     return initial;
   });
-  const [saved, setSaved] = useState(false);
+  const [saveResult, setSaveResult] = useState<
+    "idle" | "saving" | "shared" | "local" | "partial"
+  >("idle");
   const [confirmSuspicious, setConfirmSuspicious] = useState(false);
 
   const draft = {
@@ -156,12 +158,11 @@ export function EditPropertyScreen({
 
   function setFact(key: string, value: FactValue) {
     setFacts((current) => ({ ...current, [key]: value }));
-    setSaved(false);
+    setSaveResult("idle");
   }
 
-  function save(confirm = false) {
-    if (!address.trim()) return;
-    if (!validation.valid) return;
+  async function save(confirm = false) {
+    if (!address.trim() || !validation.valid || saveResult === "saving") return;
     if (validation.suspiciousPrice && !confirm) {
       setConfirmSuspicious(true);
       return;
@@ -174,7 +175,8 @@ export function EditPropertyScreen({
         ? formatLotSize(validation.values.lotAcres * 43_560)
         : "";
 
-    updateHome(home.id, {
+    setSaveResult("saving");
+    const result = await updateHome(home.id, {
       address: address.trim(),
       city: city.trim(),
       price: validation.values.price ?? 0,
@@ -210,9 +212,17 @@ export function EditPropertyScreen({
           : tourStatus
         : "none",
     });
-    setSaved(true);
     setConfirmSuspicious(false);
-    window.setTimeout(onBack, 350);
+    if (!result.home) {
+      setSaveResult("local");
+      return;
+    }
+    if (!result.details) {
+      setSaveResult("partial");
+      return;
+    }
+    setSaveResult("shared");
+    window.setTimeout(onBack, 900);
   }
 
   function errorText(key: keyof typeof errors) {
@@ -255,7 +265,7 @@ export function EditPropertyScreen({
               value={address}
               onChange={(event) => {
                 setAddress(event.target.value);
-                setSaved(false);
+                setSaveResult("idle");
               }}
               className={`${fieldClass} mt-2`}
               autoComplete="street-address"
@@ -646,8 +656,26 @@ export function EditPropertyScreen({
           className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-olive py-3.5 text-[13px] font-medium text-cream transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40 disabled:opacity-50"
         >
           <CheckIcon className="h-4 w-4" />
-          {saved ? t("edit.saved") : t("edit.save")}
+          {saveResult === "saving"
+            ? t("common.saving")
+            : saveResult === "shared"
+              ? t("edit.savedShared")
+              : saveResult === "local"
+                ? t("edit.savedLocal")
+                : saveResult === "partial"
+                  ? t("edit.savedPartial")
+                  : t("edit.save")}
         </button>
+        {saveResult === "local" && (
+          <p className="mt-2 text-center text-[10px] leading-4 text-clay">
+            {t("edit.savedLocal")}
+          </p>
+        )}
+        {saveResult === "partial" && (
+          <p className="mt-2 text-center text-[10px] leading-4 text-muted">
+            {t("edit.savedPartial")}
+          </p>
+        )}
         {!validation.valid && (
           <p className="mt-2 text-center text-[10px] text-gold">{t("edit.saveError")}</p>
         )}

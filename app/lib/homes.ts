@@ -110,6 +110,27 @@ export const HOMES: Home[] = [
 
 export const TOP_MATCH = HOMES[0];
 
+/**
+ * Map camelCase Home fields to the snake_case columns used by Supabase.
+ * Home updates must use this map or PostgREST rejects the whole patch.
+ */
+export function homePatchToRow(
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const columns: Record<string, string> = {
+    yearBuilt: "year_built",
+    tourRequested: "tour_requested",
+    daysOnMarket: "days_on_market",
+    imageFilter: "image_filter",
+  };
+  return Object.fromEntries(
+    Object.entries(patch).map(([key, value]) => [
+      columns[key] ?? key,
+      value,
+    ]),
+  );
+}
+
 export function getHome(id: string) {
   return HOMES.find((home) => home.id === id) ?? TOP_MATCH;
 }

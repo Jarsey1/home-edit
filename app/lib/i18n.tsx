@@ -134,6 +134,8 @@ export const en = {
   "dashboard.wishlistPreferences": "preferences",
   "dashboard.matchScoresLive":
     "Match scores use your active wishlist and update as facts change.",
+  "dashboard.homesSynced": "Homes synced to Supabase",
+  "dashboard.homesLocal": "Homes saved on this device only",
 
   "compare.eyebrow": "Saved homes",
   "compare.title": "Compare Homes",
@@ -602,6 +604,9 @@ export const en = {
   "edit.save": "Save changes",
   "edit.price": "Price",
   "edit.saved": "Saved",
+  "edit.savedShared": "Saved to shared list",
+  "edit.savedLocal": "Saved on this device only. Cloud sync did not complete.",
+  "edit.savedPartial": "Home saved to shared list. Photos and private details stay on this device.",
   "edit.suspiciousTitle": "Is this price correct?",
   "edit.suspiciousBody":
     "The price you entered is unusually low. Save it anyway if this is right.",
@@ -894,6 +899,8 @@ const es: Record<TranslationKey, string> = {
   "dashboard.wishlistPreferences": "preferencias",
   "dashboard.matchScoresLive":
     "La compatibilidad usa tu lista activa y se actualiza al cambiar los datos.",
+  "dashboard.homesSynced": "Casas sincronizadas con Supabase",
+  "dashboard.homesLocal": "Casas guardadas solo en este dispositivo",
 
   "compare.eyebrow": "Casas guardadas",
   "compare.title": "Comparar casas",
@@ -1369,6 +1376,9 @@ const es: Record<TranslationKey, string> = {
   "edit.save": "Guardar cambios",
   "edit.price": "Precio",
   "edit.saved": "Guardado",
+  "edit.savedShared": "Guardado en la lista compartida",
+  "edit.savedLocal": "Guardado solo en este dispositivo. La sincronización no se completó.",
+  "edit.savedPartial": "La casa se guardó en la lista compartida. Las fotos y notas privadas quedan en este dispositivo.",
   "edit.suspiciousTitle": "¿El precio es correcto?",
   "edit.suspiciousBody":
     "El precio que ingresaste es inusualmente bajo. Guárdalo si es correcto.",

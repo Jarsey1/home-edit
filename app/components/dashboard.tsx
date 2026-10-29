@@ -64,6 +64,7 @@ export function Dashboard({
     pendingEvaluations,
     toggleSaved,
     ready,
+    status,
   } = useAppData();
   const { t, locale, number } = useI18n();
 
@@ -151,9 +152,37 @@ export function Dashboard({
           <p className="mt-3 text-[13px] tracking-[0.01em] text-muted">
             {t("dashboard.tagline")}
           </p>
-          {!ready && (
+          {!ready ? (
             <p role="status" className="mt-1 text-[10px] text-muted">
               {t("common.loadingData")}
+            </p>
+          ) : (
+            <p
+              className={[
+                "mt-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] uppercase tracking-[0.08em]",
+                status === "synced"
+                  ? "border-olive/20 bg-olive/[0.06] text-olive"
+                  : status === "local"
+                    ? "border-clay/25 bg-clay/[0.06] text-clay"
+                    : "border-line bg-parchment text-muted",
+              ].join(" ")}
+            >
+              <span
+                aria-hidden="true"
+                className={[
+                  "h-1.5 w-1.5 rounded-full",
+                  status === "synced"
+                    ? "bg-olive"
+                    : status === "local"
+                      ? "bg-clay"
+                      : "bg-muted/50",
+                ].join(" ")}
+              />
+              {status === "synced"
+                ? t("dashboard.homesSynced")
+                : status === "local"
+                  ? t("dashboard.homesLocal")
+                  : t("more.connecting")}
             </p>
           )}
         </div>

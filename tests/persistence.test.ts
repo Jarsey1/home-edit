@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { factsFromHome, parseGarageCars, parseLotAcres } from "../app/lib/property-facts";
-import type { Home } from "../app/lib/homes";
+import { homePatchToRow, type Home } from "../app/lib/homes";
 
 const baseHome: Home = {
   id: "home-1",
@@ -74,6 +74,22 @@ describe("property facts", () => {
     expect(facts.city).toBeNull();
     expect(facts.pool).toBeNull();
     expect(facts.gated).toBeNull();
+  });
+
+  it("maps home update fields to Supabase column names", () => {
+    expect(
+      homePatchToRow({
+        beds: 5,
+        yearBuilt: 2020,
+        tourRequested: true,
+        price: 700_000,
+      }),
+    ).toEqual({
+      beds: 5,
+      year_built: 2020,
+      tour_requested: true,
+      price: 700_000,
+    });
   });
 
   it("survives JSON persistence with details merged", () => {

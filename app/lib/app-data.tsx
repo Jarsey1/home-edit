@@ -19,7 +19,7 @@ import {
 } from "./defaults";
 import { budgetEstimateInfo, type BudgetEstimateInfo } from "./budget-estimate";
 import { calculateBudget, inputsForProperty } from "./finance";
-import type { Home } from "./homes";
+import { homePatchToRow, type Home } from "./homes";
 import { factsFromHome } from "./property-facts";
 import {
   buildEvaluationRows,
@@ -200,7 +200,10 @@ type AppData = Snapshot & {
     state: EvaluationState,
   ) => void;
   addHome: (input: NewHomeInput) => Home | null;
-  updateHome: (homeId: string, patch: HomeUpdate) => void;
+  updateHome: (
+    homeId: string,
+    patch: HomeUpdate,
+  ) => Promise<{ home: boolean; details: boolean }>;
   removeHome: (homeId: string) => void;
   toggleSaved: (homeId: string) => void;
   setTourRequested: (homeId: string, value?: boolean) => void;
@@ -1397,7 +1400,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   );
 
   const updateHome = useCallback(
-    (homeId: string, patch: HomeUpdate) => {
+    async (
+      homeId: string,
+      patch: HomeUpdate,
+    ): Promise<{ home: boolean; details: boolean }> => {
       const coreKeys: (keyof Home)[] = [
         "address",
         "city",
@@ -1435,6 +1441,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         (value) => value !== undefined,
       );
 
+      const currentHome = data.homes.find((home) => home.id === homeId);
+      const nextHome = currentHome
+        ? ({ ...currentHome, ...corePatch } as Home)
+        : null;
       let nextDetails: PropertyDetails | null = null;
       if (hasDetailPatch) {
         const existing = data.details[homeId];
@@ -1488,22 +1498,72 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         };
       });
 
-      if (Object.keys(corePatch).length > 0) {
-        pushMutation(() =>
-          supabase!.from("homes").update(corePatch).eq("id", homeId),
-        );
+      let homeSynced = false;
+      let detailsSynced = false;
+
+      if (hasSupabaseConfig) {
+        // Attempt the cloud write even if the last read fell back to local.
+        // A transient outage should not force every future edit to stay on
+        // this device forever. Failures are reported to the caller.
+        // The listing write and the optional V2 details write are independent.
+        // A missing V2 table must not make a successful price/bedroom update
+        // look like it failed.
+        try {
+          if (Object.keys(corePatch).length > 0) {
+            const updateResult = await supabase!
+              .from("homes")
+              .update(homePatchToRow(corePatch))
+              .eq("id", homeId)
+              .select("id");
+            if (updateResult.error) throw updateResult.error;
+            if (updateResult.data && updateResult.data.length > 0) {
+              homeSynced = true;
+            } else if (nextHome && homeId.startsWith("home-")) {
+              // A locally-created home can be edited before its original insert
+              // completes. Upsert it so the edit reaches the shared dataset.
+              const position = data.homes.findIndex((home) => home.id === homeId);
+              const upsertResult = await supabase!
+                .from("homes")
+                .upsert(toHomeRow(nextHome, Math.max(0, position)), {
+                  onConflict: "id",
+                });
+              if (upsertResult.error) throw upsertResult.error;
+              homeSynced = true;
+            } else {
+              // The row is not in the shared dataset. Do not silently claim a
+              // successful cloud save; the caller shows a device-only result.
+              homeSynced = false;
+            }
+          } else {
+            homeSynced = true;
+          }
+        } catch (error) {
+          console.warn("Supabase home write failed:", error);
+          setStatus("local");
+          homeSynced = false;
+        }
+
+        if (!nextDetails) {
+          detailsSynced = true;
+        } else if (v2Synced) {
+          try {
+            const detailsResult = await supabase!
+              .from("property_details")
+              .upsert(toDetailsRow(nextDetails, ownerId), {
+                onConflict: "home_id",
+              });
+            if (detailsResult.error) throw detailsResult.error;
+            detailsSynced = true;
+          } catch (error) {
+            console.warn("Supabase property details write failed:", error);
+            detailsSynced = false;
+          }
+        }
       }
-      if (nextDetails) {
-        pushV2(() =>
-          supabase!
-            .from("property_details")
-            .upsert(toDetailsRow(nextDetails, ownerId), {
-              onConflict: "home_id",
-            }),
-        );
-      }
+
+      return { home: homeSynced, details: detailsSynced };
     },
-    [data.details, ownerId, pushMutation, pushV2],
+    [data.details, data.homes, ownerId, v2Synced],
   );
 
   const removeHome = useCallback(
@@ -1540,18 +1600,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     (homeId: string) => {
       const home = data.homes.find((entry) => entry.id === homeId);
       if (!home) return;
-      const saved = !home.saved;
-      setData((current) => ({
-        ...current,
-        homes: current.homes.map((entry) =>
-          entry.id === homeId ? { ...entry, saved } : entry,
-        ),
-      }));
-      pushMutation(() =>
-        supabase!.from("homes").update({ saved }).eq("id", homeId),
-      );
+      void updateHome(homeId, { saved: !home.saved });
     },
-    [data.homes, pushMutation],
+    [data.homes, updateHome],
   );
 
   const setTourRequested = useCallback(
@@ -1559,27 +1610,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       const home = data.homes.find((entry) => entry.id === homeId);
       if (!home) return;
       const tourRequested = value ?? !home.tourRequested;
-      setData((current) => ({
-        ...current,
-        homes: current.homes.map((entry) =>
-          entry.id === homeId ? { ...entry, tourRequested } : entry,
-        ),
-      }));
-      pushMutation(() =>
-        supabase!
-          .from("homes")
-          .update({ tour_requested: tourRequested })
-          .eq("id", homeId),
-      );
+      void updateHome(homeId, { tourRequested });
     },
-    [data.homes, pushMutation],
+    [data.homes, updateHome],
   );
 
   const toggleFavorite = useCallback(
     (homeId: string) => {
       const home = data.homes.find((entry) => entry.id === homeId);
       if (!home) return;
-      updateHome(homeId, { favorite: !home.favorite });
+      void updateHome(homeId, { favorite: !home.favorite });
     },
     [data.homes, updateHome],
   );
