@@ -340,10 +340,12 @@ export function PropertyScreen({
               <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-line/70 pt-3 text-[10px] text-muted">
                 <span className="inline-flex items-center gap-1">
                   <CheckIcon className="h-3 w-3 text-olive" />
-                  {t("property.mustSummary", {
-                    met: score.mustMet.length,
-                    total: score.mustTotal,
-                  })}
+                  {score.mustTotal > 0
+                    ? t("property.mustSummary", {
+                        met: score.mustMet.length,
+                        total: score.mustTotal,
+                      })
+                    : t("compare.noMustConfigured")}
                 </span>
                 {score.mustUnknown.length > 0 && (
                   <span className="inline-flex items-center gap-1">

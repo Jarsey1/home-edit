@@ -103,15 +103,18 @@ function fact(entry: CompareEntry, key: string) {
 export function CompareScreen({
   onOpenProperty,
   onOpenBudget,
+  onOpenWishlist,
   onAddHome,
 }: {
   onOpenProperty: (homeId: string) => void;
   onOpenBudget: (homeId: string) => void;
+  onOpenWishlist: () => void;
   onAddHome: () => void;
 }) {
   const {
     homes,
     activeWishlist,
+    activeRequirements,
     comparisonNotes,
     addComparisonNote,
     removeHome,
@@ -184,6 +187,14 @@ export function CompareScreen({
   const activeName = activeWishlist
     ? translateWishlistName(activeWishlist.name, locale)
     : "";
+  const scoredRequirements = activeRequirements.filter(
+    (requirement) =>
+      requirement.configured !== false && requirement.importance !== "ignore",
+  );
+  const hasScoredRequirements = scoredRequirements.length > 0;
+  const hasMustHaves = scoredRequirements.some(
+    (requirement) => requirement.importance === "must",
+  );
   const columns = Math.max(entries.length, 1);
   const scrolls = entries.length > 2 || homes.length > 2;
   const gridStyle: CSSProperties = {
@@ -317,12 +328,17 @@ export function CompareScreen({
     },
     {
       label: t("compare.mustMet"),
-      render: (entry) => (
-        <span className="inline-flex items-center gap-1 text-[10.5px] tabular-nums text-ink/85">
-          <CheckIcon className="h-3.5 w-3.5 text-olive" />
-          {entry.score.mustMet.length}/{entry.score.mustTotal}
-        </span>
-      ),
+      render: (entry) =>
+        entry.score.mustTotal === 0 ? (
+          <span className="text-[9.5px] leading-4 text-muted">
+            {t("compare.noMustConfigured")}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-[10.5px] tabular-nums text-ink/85">
+            <CheckIcon className="h-3.5 w-3.5 text-olive" />
+            {entry.score.mustMet.length}/{entry.score.mustTotal}
+          </span>
+        ),
     },
     {
       label: t("compare.mustMissing"),
@@ -552,6 +568,30 @@ export function CompareScreen({
           </p>
         )}
       </header>
+
+      {!hasScoredRequirements && (
+        <div className="mx-6 mt-4 rounded-2xl border border-gold/30 bg-gold/10 px-4 py-3.5">
+          <p className="text-[12px] font-medium text-ink">
+            {t("compare.noConfiguredTitle")}
+          </p>
+          <p className="mt-1 text-[10.5px] leading-4 text-muted">
+            {t("compare.noConfiguredBody")}
+          </p>
+          <button
+            type="button"
+            onClick={onOpenWishlist}
+            className="mt-2.5 inline-flex min-h-9 items-center rounded-full border border-olive/25 bg-white/70 px-3 text-[10px] font-medium text-olive"
+          >
+            {t("compare.reviewWishlist")}
+          </button>
+        </div>
+      )}
+
+      {hasScoredRequirements && !hasMustHaves && (
+        <p className="mx-6 mt-4 rounded-2xl border border-line bg-parchment/70 px-4 py-2.5 text-[10px] leading-4 text-muted">
+          {t("compare.noMustNotice")}
+        </p>
+      )}
 
       {pendingRemove && (
         <div

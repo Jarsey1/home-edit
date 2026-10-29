@@ -70,13 +70,24 @@ export function factsFromHome(
   const details = home.facts ?? {};
   const facts: PropertyFacts = { ...details };
 
-  if (!has(facts, "price")) facts.price = knownNumber(home.price);
-  if (!has(facts, "beds")) facts.beds = knownNumber(home.beds);
-  if (!has(facts, "baths")) facts.baths = knownNumber(home.baths);
-  if (!has(facts, "sqft")) facts.sqft = knownNumber(home.sqft);
-  if (!has(facts, "yearBuilt")) facts.yearBuilt = knownNumber(home.yearBuilt);
-  if (!has(facts, "city")) facts.city = cityName(home.city);
-  if (!has(facts, "excludedCity")) facts.excludedCity = cityName(home.city);
+  // The listing columns are canonical for core facts. Details can fill gaps,
+  // but an edit to the home record must win over an old cached fact.
+  facts.price =
+    knownNumber(home.price) ?? (has(facts, "price") ? facts.price : null);
+  facts.beds =
+    knownNumber(home.beds) ?? (has(facts, "beds") ? facts.beds : null);
+  facts.baths =
+    knownNumber(home.baths) ?? (has(facts, "baths") ? facts.baths : null);
+  facts.sqft =
+    knownNumber(home.sqft) ?? (has(facts, "sqft") ? facts.sqft : null);
+  facts.yearBuilt =
+    knownNumber(home.yearBuilt) ??
+    (has(facts, "yearBuilt") ? facts.yearBuilt : null);
+  facts.city =
+    cityName(home.city) ?? (has(facts, "city") ? facts.city : null);
+  facts.excludedCity =
+    cityName(home.city) ??
+    (has(facts, "excludedCity") ? facts.excludedCity : null);
   if (!has(facts, "propertyType")) facts.propertyType = home.type || null;
   if (!has(facts, "hoa")) facts.hoa = home.hoa > 0 ? home.hoa : null;
   if (!has(facts, "lotAcres")) facts.lotAcres = parseLotAcres(home.lot);

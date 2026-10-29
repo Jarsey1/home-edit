@@ -369,8 +369,9 @@ export function Dashboard({
                     })}
                   </p>
                   <p className="shrink-0 text-[10px] tabular-nums text-olive">
-                    {topScored.score.mustMet.length}/{topScored.score.mustTotal}{" "}
-                    {t("compare.mustMet")}
+                    {topScored.score.mustTotal > 0
+                      ? `${topScored.score.mustMet.length}/${topScored.score.mustTotal} ${t("compare.mustMet")}`
+                      : t("compare.noMustConfigured")}
                   </p>
                 </div>
                 <p

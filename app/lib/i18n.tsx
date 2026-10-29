@@ -191,6 +191,13 @@ export const en = {
   "compare.currentWishlist": "Compared with {name}",
   "compare.estimated": "Estimated",
   "compare.noPrice": "Price TBD",
+  "compare.noConfiguredTitle": "No wishlist preferences are configured yet.",
+  "compare.noConfiguredBody":
+    "Add or review a must-have or nice-to-have so property edits can update the comparison.",
+  "compare.reviewWishlist": "Review Wishlist",
+  "compare.noMustConfigured": "No must-haves configured",
+  "compare.noMustNotice":
+    "This comparison has no configured must-haves; scores use nice-to-haves only.",
 
   "more.eyebrow": "Everything else",
   "more.title": "More",
@@ -949,6 +956,13 @@ const es: Record<TranslationKey, string> = {
   "compare.currentWishlist": "Comparada con {name}",
   "compare.estimated": "Estimado",
   "compare.noPrice": "Precio por confirmar",
+  "compare.noConfiguredTitle": "Aún no hay preferencias configuradas.",
+  "compare.noConfiguredBody":
+    "Agrega o revisa un imprescindible o un deseo para que los cambios de la propiedad actualicen la comparación.",
+  "compare.reviewWishlist": "Revisar lista",
+  "compare.noMustConfigured": "Sin imprescindibles",
+  "compare.noMustNotice":
+    "Esta comparación no tiene imprescindibles configurados; las puntuaciones usan solo los deseos.",
 
   "more.eyebrow": "Todo lo demás",
   "more.title": "Más",

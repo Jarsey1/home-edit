@@ -45,6 +45,15 @@ describe("property facts", () => {
     expect(facts.hoa).toBe(350);
   });
 
+  it("lets a listing edit override a stale core fact", () => {
+    const edited = factsFromHome({
+      ...baseHome,
+      beds: 5,
+      facts: { beds: 3, pool: true },
+    });
+    expect(edited.beds).toBe(5);
+  });
+
   it("keeps missing optional fields unknown instead of zero", () => {
     const facts = factsFromHome({
       ...baseHome,
