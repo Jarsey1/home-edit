@@ -539,29 +539,18 @@ export function CompareScreen({
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="flex items-start justify-between px-6 pt-8">
-        <div>
-          <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted">
-            {t("compare.eyebrow")}
+      <header className="px-6 pt-8">
+        <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted">
+          {t("compare.eyebrow")}
+        </p>
+        <h1 className="mt-1 font-serif text-[31px] leading-none tracking-[-0.02em] text-ink">
+          {t("compare.title")}
+        </h1>
+        {activeWishlist && (
+          <p className="mt-2 text-[10px] text-muted">
+            {t("compare.currentWishlist", { name: activeName })}
           </p>
-          <h1 className="mt-1 font-serif text-[31px] leading-none tracking-[-0.02em] text-ink">
-            {t("compare.title")}
-          </h1>
-          {activeWishlist && (
-            <p className="mt-2 text-[10px] text-muted">
-              {t("compare.currentWishlist", { name: activeName })}
-            </p>
-          )}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setAddingNote((value) => !value)}
-          className="mt-0.5 inline-flex items-center gap-1.5 rounded-full bg-olive px-3.5 py-2.5 text-[11px] font-medium text-cream transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
-        >
-          <PlusIcon className="h-3.5 w-3.5" />
-          {t("common.add")}
-        </button>
+        )}
       </header>
 
       {pendingRemove && (
@@ -598,28 +587,6 @@ export function CompareScreen({
             </button>
           </div>
         </div>
-      )}
-
-      {addingNote && (
-        <form
-          onSubmit={submitNote}
-          className="mx-6 mt-4 flex items-center gap-2 rounded-2xl border border-line bg-white/60 p-2 pl-4"
-        >
-          <input
-            autoFocus
-            value={noteDraft}
-            onChange={(event) => setNoteDraft(event.target.value)}
-            placeholder={t("compare.notePlaceholder")}
-            aria-label={t("compare.noteAria")}
-            className="min-w-0 flex-1 bg-transparent text-[12px] text-ink outline-none placeholder:text-muted"
-          />
-          <button
-            type="submit"
-            className="min-h-9 rounded-full bg-olive px-3 text-[10px] font-medium text-cream transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40"
-          >
-            {t("common.add")}
-          </button>
-        </form>
       )}
 
       <div className="px-6 pb-9 pt-5">
@@ -783,42 +750,79 @@ export function CompareScreen({
               </ul>
             </section>
 
-            {comparisonNotes.length > 0 && (
-              <div className="mt-4 overflow-hidden rounded-2xl border border-line bg-white/45">
-                <button
-                  type="button"
-                  onClick={() => setNotesOpen((value) => !value)}
-                  aria-expanded={notesOpen}
-                  className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-olive/30"
-                >
-                  <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted">
-                    {notesOpen
-                      ? t("compare.notesHide")
-                      : t("compare.notesShow", {
-                          count: comparisonNotes.length,
-                        })}
-                  </span>
-                  <ChevronDownIcon
-                    className={[
-                      "h-4 w-4 text-muted transition-transform",
-                      notesOpen ? "rotate-180" : "",
-                    ].join(" ")}
-                  />
-                </button>
-                {notesOpen && (
-                  <ul className="space-y-1.5 border-t border-line/70 px-4 py-3">
-                    {comparisonNotes.map((note) => (
-                      <li
-                        key={note.id}
-                        className="text-[11px] leading-4 text-ink/85"
+            <div className="mt-4 overflow-hidden rounded-2xl border border-line bg-white/45">
+              <button
+                type="button"
+                onClick={() => setNotesOpen((value) => !value)}
+                aria-expanded={notesOpen}
+                className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-olive/30"
+              >
+                <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted">
+                  {notesOpen
+                    ? t("compare.notesHide")
+                    : t("compare.notesShow", {
+                        count: comparisonNotes.length,
+                      })}
+                </span>
+                <ChevronDownIcon
+                  className={[
+                    "h-4 w-4 text-muted transition-transform",
+                    notesOpen ? "rotate-180" : "",
+                  ].join(" ")}
+                />
+              </button>
+              {notesOpen && (
+                <div className="border-t border-line/70 px-4 py-3">
+                  {comparisonNotes.length === 0 ? (
+                    <p className="text-[10.5px] leading-4 text-muted">
+                      {t("compare.noNotes")}
+                    </p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {comparisonNotes.map((note) => (
+                        <li
+                          key={note.id}
+                          className="text-[11px] leading-4 text-ink/85"
+                        >
+                          {note.body}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {addingNote ? (
+                    <form
+                      onSubmit={submitNote}
+                      className="mt-3 flex items-center gap-2 rounded-xl border border-line bg-white/70 p-1.5 pl-3"
+                    >
+                      <input
+                        autoFocus
+                        value={noteDraft}
+                        onChange={(event) => setNoteDraft(event.target.value)}
+                        placeholder={t("compare.notePlaceholder")}
+                        aria-label={t("compare.noteAria")}
+                        className="min-w-0 flex-1 bg-transparent text-[11.5px] text-ink outline-none placeholder:text-muted"
+                      />
+                      <button
+                        type="submit"
+                        className="min-h-8 rounded-full bg-olive px-3 text-[9.5px] font-medium text-cream"
                       >
-                        {note.body}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
+                        {t("common.add")}
+                      </button>
+                    </form>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setAddingNote(true)}
+                      className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-white/70 px-3 text-[10px] font-medium text-olive"
+                    >
+                      <PlusIcon className="h-3 w-3" />
+                      {t("compare.addNote")}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
 
             <div className="mt-4 overflow-x-auto pb-1">
               <div style={{ minWidth: 88 + columns * 136 }}>

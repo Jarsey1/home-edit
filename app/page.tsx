@@ -26,9 +26,10 @@ type Overlay =
         | "evaluate";
       homeId: string;
     }
-  | { type: "add-home" };
+  | { type: "add-home" }
+  | { type: "budget" };
 
-type OverlayType = Exclude<Overlay["type"], "add-home">;
+type OverlayType = Exclude<Overlay["type"], "add-home" | "budget">;
 
 export default function HomeApp() {
   const { homes, topMatch } = useAppData();
@@ -73,6 +74,8 @@ export default function HomeApp() {
           {overlay.type === "add-home" && (
             <AddHomeScreen onBack={goBack} onAdded={openProperty} />
           )}
+
+          {overlay.type === "budget" && <BudgetScreen onBack={goBack} />}
 
           {"homeId" in overlay && overlayHome && (
             <>
@@ -168,15 +171,11 @@ export default function HomeApp() {
             />
           )}
 
-          {tab === "budget" && (
-            <BudgetScreen onBack={() => changeTab("home")} />
-          )}
-
           {tab === "more" && (
             <MoreScreen
               onOpenHomes={() => changeTab("homes")}
               onOpenWishlist={() => changeTab("wishlist")}
-              onOpenBudget={() => changeTab("budget")}
+              onOpenBudget={() => setOverlays([{ type: "budget" }])}
               onOpenTour={() => {
                 if (homes.length === 0) {
                   changeTab("homes");

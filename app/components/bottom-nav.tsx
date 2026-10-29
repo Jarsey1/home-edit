@@ -3,14 +3,13 @@
 import type { ComponentType, SVGProps } from "react";
 import { useI18n, type TranslationKey } from "../lib/i18n";
 import {
-  BudgetIcon,
   HeartIcon,
   HomeIcon,
   HomesIcon,
   MoreIcon,
 } from "./icons";
 
-export type TabId = "home" | "homes" | "wishlist" | "budget" | "more";
+export type TabId = "home" | "homes" | "wishlist" | "more";
 
 type Tab = {
   id: TabId;
@@ -20,9 +19,8 @@ type Tab = {
 
 const TABS: Tab[] = [
   { id: "home", labelKey: "nav.home", Icon: HomeIcon },
-  { id: "homes", labelKey: "nav.homes", Icon: HomesIcon },
   { id: "wishlist", labelKey: "nav.wishlist", Icon: HeartIcon },
-  { id: "budget", labelKey: "nav.budget", Icon: BudgetIcon },
+  { id: "homes", labelKey: "nav.homes", Icon: HomesIcon },
   { id: "more", labelKey: "nav.more", Icon: MoreIcon },
 ];
 

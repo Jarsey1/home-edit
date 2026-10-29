@@ -143,6 +143,8 @@ export const en = {
   "compare.notePlaceholder": "Add a note about these homes…",
   "compare.noteAria": "Comparison note",
   "compare.notes": "Comparison notes",
+  "compare.addNote": "Add note",
+  "compare.noNotes": "No comparison notes yet.",
   "compare.emptyTitle": "Nothing to compare yet",
   "compare.emptyBody": "Add a home and its details will line up here.",
   "compare.regionAria": "Home comparison",
@@ -894,6 +896,8 @@ const es: Record<TranslationKey, string> = {
   "compare.notePlaceholder": "Agrega una nota sobre estas casas…",
   "compare.noteAria": "Nota de comparación",
   "compare.notes": "Notas de comparación",
+  "compare.addNote": "Agregar nota",
+  "compare.noNotes": "Aún no hay notas de comparación.",
   "compare.emptyTitle": "Aún no hay nada que comparar",
   "compare.emptyBody":
     "Agrega una casa y sus detalles aparecerán aquí.",
