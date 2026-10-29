@@ -66,6 +66,7 @@ import {
   nowIso,
   requirementsFor,
   requirementsFromLegacy,
+  suggestedRequirements,
   upgradeImportedRequirement,
   wishlistSetupProgress,
 } from "./wishlists";
@@ -241,6 +242,20 @@ type AppData = Snapshot & {
     patch: Partial<WishlistRequirement>,
   ) => void;
   removeRequirement: (requirementId: string) => void;
+  bulkSetImportance: (
+    requirementIds: string[],
+    importance: WishlistRequirement["importance"],
+  ) => Promise<{ ok: boolean; error?: string }>;
+  bulkRemoveRequirements: (requirementIds: string[]) => Promise<{
+    ok: boolean;
+    removed: WishlistRequirement[];
+    removedEvaluations: PropertyEvaluation[];
+    error?: string;
+  }>;
+  restoreRequirements: (
+    requirements: WishlistRequirement[],
+    evaluations?: PropertyEvaluation[],
+  ) => Promise<boolean>;
   saveTourNote: (
     homeId: string,
     patch: Pick<TourNote, "rating" | "notes" | "pros" | "cons">,
@@ -1685,6 +1700,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         active,
         budget,
       });
+      const suggestions = suggestedRequirements(wishlist.id);
       const deactivated = active
         ? data.wishlists
             .filter((entry) => entry.isActive)
@@ -1698,12 +1714,25 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           ),
           wishlist,
         ],
+        requirements: [...current.requirements, ...suggestions],
       }));
       pushV2(() =>
         supabase!
           .from("wishlists")
           .upsert(toWishlistV2Row(wishlist, ownerId), { onConflict: "id" }),
       );
+      if (suggestions.length > 0) {
+        pushV2(() =>
+          supabase!
+            .from("wishlist_requirements")
+            .upsert(
+              suggestions.map((requirement) =>
+                toRequirementV2Row(requirement, ownerId),
+              ),
+              { onConflict: "id" },
+            ),
+        );
+      }
       if (deactivated.length > 0) {
         pushV2(() =>
           supabase!
@@ -1999,6 +2028,193 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       );
     },
     [data.evaluations, ownerId, pushEvaluation],
+  );
+
+  const bulkSetImportance = useCallback(
+    async (
+      requirementIds: string[],
+      importance: WishlistRequirement["importance"],
+    ): Promise<{ ok: boolean; error?: string }> => {
+      if (requirementIds.length === 0) {
+        return { ok: false, error: "No requirements selected" };
+      }
+      const active = pickActiveWishlist(data.wishlists);
+      const targets = data.requirements.filter(
+        (requirement) =>
+          requirementIds.includes(requirement.id) &&
+          requirement.wishlistId === active?.id,
+      );
+      if (targets.length === 0) {
+        return { ok: false, error: "No requirements selected" };
+      }
+      const previous = new Map(
+        targets.map((requirement) => [requirement.id, requirement]),
+      );
+      const timestamp = nowIso();
+
+      setData((current) => ({
+        ...current,
+        requirements: current.requirements.map((requirement) =>
+          previous.has(requirement.id)
+            ? {
+                ...requirement,
+                importance,
+                configured: true,
+                updatedAt: timestamp,
+              }
+            : requirement,
+        ),
+      }));
+
+      if (v2Synced) {
+        const { error } = await supabase!
+          .from("wishlist_requirements")
+          .update({ importance, configured: true, updated_at: timestamp })
+          .in(
+            "id",
+            targets.map((requirement) => requirement.id),
+          );
+        if (error) {
+          setData((current) => ({
+            ...current,
+            requirements: current.requirements.map((requirement) =>
+              previous.get(requirement.id) ?? requirement,
+            ),
+          }));
+          return { ok: false, error: error.message };
+        }
+      }
+
+      return { ok: true };
+    },
+    [data.requirements, data.wishlists, v2Synced],
+  );
+
+  const bulkRemoveRequirements = useCallback(
+    async (
+      requirementIds: string[],
+    ): Promise<{
+      ok: boolean;
+      removed: WishlistRequirement[];
+      removedEvaluations: PropertyEvaluation[];
+      error?: string;
+    }> => {
+      const active = pickActiveWishlist(data.wishlists);
+      const removed = data.requirements.filter(
+        (requirement) =>
+          requirementIds.includes(requirement.id) &&
+          requirement.wishlistId === active?.id,
+      );
+      const removedEvaluations = data.evaluations.filter((evaluation) =>
+        requirementIds.includes(evaluation.requirementId),
+      );
+      if (removed.length === 0) {
+        return { ok: false, removed: [], removedEvaluations: [] };
+      }
+
+      setData((current) => ({
+        ...current,
+        requirements: current.requirements.filter(
+          (requirement) => !requirementIds.includes(requirement.id),
+        ),
+        evaluations: current.evaluations.filter(
+          (evaluation) =>
+            !requirementIds.includes(evaluation.requirementId),
+        ),
+      }));
+
+      if (v2Synced) {
+        const { error } = await supabase!
+          .from("wishlist_requirements")
+          .delete()
+          .in("id", requirementIds);
+        if (error) {
+          setData((current) => ({
+            ...current,
+            requirements: [
+              ...current.requirements.filter(
+                (requirement) =>
+                  !removed.some(
+                    (entry) => entry.id === requirement.id,
+                  ),
+              ),
+              ...removed,
+            ],
+            evaluations: [
+              ...current.evaluations.filter(
+                (evaluation) =>
+                  !removedEvaluations.some(
+                    (entry) => entry.id === evaluation.id,
+                  ),
+              ),
+              ...removedEvaluations,
+            ],
+          }));
+          return {
+            ok: false,
+            removed: [],
+            removedEvaluations: [],
+            error: error.message,
+          };
+        }
+      }
+
+      return { ok: true, removed, removedEvaluations };
+    },
+    [data.evaluations, data.requirements, data.wishlists, v2Synced],
+  );
+
+  const restoreRequirements = useCallback(
+    async (
+      requirements: WishlistRequirement[],
+      evaluations: PropertyEvaluation[] = [],
+    ): Promise<boolean> => {
+      if (requirements.length === 0) return true;
+      setData((current) => ({
+        ...current,
+        requirements: [
+          ...current.requirements.filter(
+            (requirement) =>
+              !requirements.some((entry) => entry.id === requirement.id),
+          ),
+          ...requirements,
+        ],
+        evaluations: [
+          ...current.evaluations.filter(
+            (evaluation) =>
+              !evaluations.some((entry) => entry.id === evaluation.id),
+          ),
+          ...evaluations,
+        ],
+      }));
+
+      if (!v2Synced) return true;
+
+      const requirementsResult = await supabase!
+        .from("wishlist_requirements")
+        .upsert(
+          requirements.map((requirement) =>
+            toRequirementV2Row(requirement, ownerId),
+          ),
+          { onConflict: "id" },
+        );
+      if (requirementsResult.error) return false;
+
+      if (evaluations.length > 0 && evaluationsSynced) {
+        const evaluationsResult = await supabase!
+          .from("property_evaluations")
+          .upsert(
+            evaluations.map((evaluation) =>
+              toEvaluationRow(evaluation, ownerId),
+            ),
+            { onConflict: "id" },
+          );
+        if (evaluationsResult.error) return false;
+      }
+
+      return true;
+    },
+    [evaluationsSynced, ownerId, v2Synced],
   );
 
   const saveTourNote = useCallback(
@@ -2367,6 +2583,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       addRequirement,
       updateRequirement,
       removeRequirement,
+      bulkSetImportance,
+      bulkRemoveRequirements,
+      restoreRequirements,
       saveTourNote,
       updateBudget,
       addComparisonNote,
@@ -2398,6 +2617,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     addRequirement,
     updateRequirement,
     removeRequirement,
+    bulkSetImportance,
+    bulkRemoveRequirements,
+    restoreRequirements,
     saveTourNote,
     updateBudget,
     addComparisonNote,

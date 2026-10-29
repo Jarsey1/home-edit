@@ -13,6 +13,7 @@ import {
 } from "../../lib/i18n";
 import type {
   Importance,
+  PropertyEvaluation,
   Wishlist,
   WishlistRequirement,
 } from "../../lib/v2-types";
@@ -23,6 +24,7 @@ import { Sheet } from "../sheet";
 import { RequirementEditor } from "../wishlist-requirement-editor";
 import {
   ArrowRightIcon,
+  CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   PencilIcon,
@@ -100,9 +102,15 @@ function ImportanceBadge({
 function PriorityRow({
   requirement,
   onEdit,
+  manageMode = false,
+  selected = false,
+  onToggle,
 }: {
   requirement: WishlistRequirement;
   onEdit: () => void;
+  manageMode?: boolean;
+  selected?: boolean;
+  onToggle?: () => void;
 }) {
   const { t, locale } = useI18n();
   const expected = expectedLabel(requirement, locale, t);
@@ -114,6 +122,23 @@ function PriorityRow({
 
   return (
     <article className="flex items-start gap-3 px-4 py-3">
+      {manageMode && (
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={selected}
+          aria-label={t("wishlist.selectAria", { name })}
+          onClick={onToggle}
+          className={[
+            "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40",
+            selected
+              ? "border-olive bg-olive text-cream"
+              : "border-line bg-white/70 text-transparent",
+          ].join(" ")}
+        >
+          <CheckIcon className="h-3.5 w-3.5" />
+        </button>
+      )}
       <span
         aria-hidden="true"
         className={[
@@ -156,15 +181,17 @@ function PriorityRow({
           )}
         </div>
       </div>
-      <button
-        type="button"
-        onClick={onEdit}
-        aria-label={t("wishlist.editAria", { name })}
-        className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border border-line bg-white/70 px-2.5 text-[9.5px] font-medium text-ink transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
-      >
-        <PencilIcon className="h-3 w-3 text-olive" />
-        {t("common.edit")}
-      </button>
+      {!manageMode && (
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label={t("wishlist.editAria", { name })}
+          className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border border-line bg-white/70 px-2.5 text-[9.5px] font-medium text-ink transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
+        >
+          <PencilIcon className="h-3 w-3 text-olive" />
+          {t("common.edit")}
+        </button>
+      )}
     </article>
   );
 }
@@ -186,6 +213,9 @@ export function WishlistScreen({
     duplicateWishlist,
     deleteWishlist,
     updateWishlistBudget,
+    bulkSetImportance,
+    bulkRemoveRequirements,
+    restoreRequirements,
   } = useAppData();
   const { t, locale } = useI18n();
 
@@ -195,6 +225,15 @@ export function WishlistScreen({
   const [viewMode, setViewMode] = useState<ViewMode>("priority");
   const [filter, setFilter] = useState<Filter>("must");
   const [manageOpen, setManageOpen] = useState(false);
+  const [manageMode, setManageMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkNotice, setBulkNotice] = useState("");
+  const [undoBatch, setUndoBatch] = useState<{
+    requirements: WishlistRequirement[];
+    evaluations: PropertyEvaluation[];
+  } | null>(null);
   const [dialog, setDialog] = useState<"new" | "rename" | "delete" | null>(null);
   const [dialogName, setDialogName] = useState("");
   const [dialogBudget, setDialogBudget] = useState("");
@@ -251,6 +290,126 @@ export function WishlistScreen({
           ? t("wishlist.myDealbreakers")
           : t("wishlist.allRequirements");
 
+  const bulkImportanceActions = (
+    [
+      { id: "must" as const, label: t("wishlist.bulkMoveMust") },
+      { id: "nice" as const, label: t("wishlist.bulkMoveNice") },
+      {
+        id: "dealbreaker" as const,
+        label: t("wishlist.bulkMoveDealbreaker"),
+      },
+      { id: "ignore" as const, label: t("wishlist.bulkMarkIgnore") },
+    ] satisfies { id: Importance; label: string }[]
+  ).filter((action) => filter === "all" || action.id !== filter);
+
+  function changeFilter(next: Filter) {
+    setFilter(next);
+    setSelectedIds([]);
+    setBulkNotice("");
+  }
+
+  function changeView(next: ViewMode) {
+    setViewMode(next);
+    setManageMode(false);
+    setSelectedIds([]);
+    setBulkNotice("");
+  }
+
+  function switchWishlist(wishlistId: string) {
+    setActiveWishlist(wishlistId);
+    setViewMode("priority");
+    setFilter("must");
+    setManageMode(false);
+    setSelectedIds([]);
+    setUndoBatch(null);
+    setBulkNotice("");
+  }
+
+  function exitManage() {
+    setManageMode(false);
+    setSelectedIds([]);
+    setBulkNotice("");
+  }
+
+  function toggleSelected(requirementId: string) {
+    setSelectedIds((current) =>
+      current.includes(requirementId)
+        ? current.filter((id) => id !== requirementId)
+        : [...current, requirementId],
+    );
+    setBulkNotice("");
+  }
+
+  function selectAllVisible() {
+    setSelectedIds(filtered.map((requirement) => requirement.id));
+    setBulkNotice("");
+  }
+
+  function deselectAll() {
+    setSelectedIds([]);
+    setBulkNotice("");
+  }
+
+  async function applyBulkImportance(importance: Importance) {
+    if (selectedIds.length === 0 || bulkBusy) return;
+    const count = selectedIds.length;
+    setBulkBusy(true);
+    setBulkNotice("");
+    const result = await bulkSetImportance(selectedIds, importance);
+    setBulkBusy(false);
+    if (result.ok) {
+      setSelectedIds([]);
+      setBulkNotice(
+        count === 1
+          ? t("wishlist.bulkUpdatedOne")
+          : t("wishlist.bulkUpdated", { count }),
+      );
+    } else {
+      setBulkNotice(t("wishlist.bulkError"));
+    }
+  }
+
+  function requestBulkDelete() {
+    if (selectedIds.length === 0) return;
+    setBulkDeleteOpen(true);
+  }
+
+  async function confirmBulkDelete() {
+    if (selectedIds.length === 0 || bulkBusy) return;
+    setBulkBusy(true);
+    setBulkNotice("");
+    const result = await bulkRemoveRequirements(selectedIds);
+    setBulkBusy(false);
+    if (result.ok) {
+      setUndoBatch({
+        requirements: result.removed,
+        evaluations: result.removedEvaluations,
+      });
+      setSelectedIds([]);
+      setBulkDeleteOpen(false);
+      setBulkNotice("");
+    } else {
+      setBulkNotice(t("wishlist.bulkError"));
+    }
+  }
+
+  async function undoRemove() {
+    if (!undoBatch) return;
+    const batch = undoBatch;
+    setBulkBusy(true);
+    const restored = await restoreRequirements(
+      batch.requirements,
+      batch.evaluations,
+    );
+    setBulkBusy(false);
+    if (restored) {
+      setUndoBatch(null);
+      setBulkNotice(t("wishlist.bulkRestored"));
+    } else {
+      setBulkNotice(t("wishlist.bulkError"));
+    }
+  }
+
   function openNew() {
     setDialogName("");
     setDialogBudget("");
@@ -282,6 +441,12 @@ export function WishlistScreen({
       Number.isFinite(parsedBudget) && parsedBudget > 0 ? parsedBudget : null,
       true,
     );
+    setViewMode("priority");
+    setFilter("must");
+    setManageMode(false);
+    setSelectedIds([]);
+    setUndoBatch(null);
+    setBulkNotice("");
     setDialog(null);
   }
 
@@ -305,7 +470,16 @@ export function WishlistScreen({
   function confirmDelete() {
     if (!activeWishlist) return;
     const removed = deleteWishlist(activeWishlist.id);
-    if (removed) setDialog(null);
+    if (removed) {
+      setDialog(null);
+      setManageOpen(false);
+      setViewMode("priority");
+      setFilter("must");
+      setManageMode(false);
+      setSelectedIds([]);
+      setUndoBatch(null);
+      setBulkNotice("");
+    }
   }
 
   function commitBudget(raw: string) {
@@ -352,7 +526,16 @@ export function WishlistScreen({
         </button>
       </header>
 
-      <div className="px-6 pb-9">
+      <div
+        className={[
+          "px-6",
+          viewMode === "priority" &&
+          manageMode &&
+          selectedIds.length > 0
+            ? "pb-44"
+            : "pb-9",
+        ].join(" ")}
+      >
         <div
           className="-mx-6 mt-5 flex gap-2 overflow-x-auto px-6 pb-1"
           role="group"
@@ -364,7 +547,7 @@ export function WishlistScreen({
               <button
                 key={wishlist.id}
                 type="button"
-                onClick={() => setActiveWishlist(wishlist.id)}
+                onClick={() => switchWishlist(wishlist.id)}
                 aria-pressed={isActive}
                 className={[
                   "min-h-10 shrink-0 rounded-full border px-3.5 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40",
@@ -402,10 +585,11 @@ export function WishlistScreen({
                 type="button"
                 onClick={() => setManageOpen((value) => !value)}
                 aria-expanded={manageOpen}
-                aria-label={t("wishlist.manageAria")}
-                className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full border border-line bg-white/60 px-2.5 text-[9.5px] font-medium text-ink"
+                className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border border-line bg-white/60 px-2.5 text-[9.5px] font-medium text-ink"
               >
-                {manageOpen ? t("wishlist.hideManage") : t("wishlist.manage")}
+                {manageOpen
+                  ? t("wishlist.hideWishlistSettings")
+                  : t("wishlist.manageWishlist")}
                 <ChevronDownIcon
                   className={[
                     "h-3 w-3 transition-transform",
@@ -509,7 +693,7 @@ export function WishlistScreen({
             <button
               key={option.id}
               type="button"
-              onClick={() => setViewMode(option.id)}
+              onClick={() => changeView(option.id)}
               aria-pressed={viewMode === option.id}
               className={[
                 "min-h-9 flex-1 rounded-full px-2 text-[10.5px] transition-colors",
@@ -536,7 +720,7 @@ export function WishlistScreen({
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => setFilter(tab.id)}
+                    onClick={() => changeFilter(tab.id)}
                     aria-pressed={isActive}
                     className={[
                       "min-h-9 shrink-0 rounded-full border px-3 text-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40",
@@ -551,19 +735,109 @@ export function WishlistScreen({
               })}
             </div>
 
-            <div className="mt-4 flex items-center justify-between gap-3">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-serif text-[21px] tracking-[-0.01em] text-ink">
                 {filterTitle}
               </h2>
-              <button
-                type="button"
-                onClick={openNewRequirement}
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-olive px-3 text-[10px] font-medium text-cream"
-              >
-                <PlusIcon className="h-3.5 w-3.5" />
-                {t("wishlist.addRequirement")}
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (manageMode) {
+                      exitManage();
+                    } else {
+                      setManageMode(true);
+                      setSelectedIds([]);
+                      setBulkNotice("");
+                    }
+                  }}
+                  className="inline-flex min-h-9 items-center rounded-full border border-line bg-white/60 px-3 text-[10px] font-medium text-ink"
+                >
+                  {manageMode ? t("common.cancel") : t("wishlist.manage")}
+                </button>
+                <button
+                  type="button"
+                  onClick={openNewRequirement}
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-olive px-3 text-[10px] font-medium text-cream"
+                >
+                  <PlusIcon className="h-3.5 w-3.5" />
+                  {t("wishlist.addRequirement")}
+                </button>
+              </div>
             </div>
+
+            {manageMode && (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-parchment/70 px-3 py-2">
+                <p className="text-[10px] tabular-nums text-muted">
+                  {selectedIds.length === 1
+                    ? t("wishlist.selectedOne")
+                    : t("wishlist.selectedCount", {
+                        count: selectedIds.length,
+                      })}
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={selectAllVisible}
+                    className="min-h-9 rounded-full border border-line bg-white/70 px-2.5 text-[9.5px] font-medium text-ink"
+                  >
+                    {t("wishlist.selectAll")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={deselectAll}
+                    disabled={selectedIds.length === 0}
+                    className="min-h-9 rounded-full border border-line bg-white/70 px-2.5 text-[9.5px] font-medium text-muted disabled:opacity-40"
+                  >
+                    {t("wishlist.deselectAll")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={exitManage}
+                    className="min-h-9 rounded-full bg-olive px-3 text-[9.5px] font-medium text-cream"
+                  >
+                    {t("common.done")}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {bulkNotice && (
+              <p
+                role="status"
+                className={[
+                  "mt-2 text-[10px]",
+                  bulkNotice === t("wishlist.bulkError")
+                    ? "text-clay"
+                    : "text-olive",
+                ].join(" ")}
+              >
+                {bulkNotice}
+              </p>
+            )}
+
+            {undoBatch && (
+              <div
+                role="status"
+                className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-olive/20 bg-olive/[0.06] px-3 py-2"
+              >
+                <p className="text-[10px] text-ink">
+                  {undoBatch.requirements.length === 1
+                    ? t("wishlist.bulkRemovedOne")
+                    : t("wishlist.bulkRemoved", {
+                        count: undoBatch.requirements.length,
+                      })}
+                </p>
+                <button
+                  type="button"
+                  onClick={undoRemove}
+                  disabled={bulkBusy}
+                  className="min-h-9 shrink-0 rounded-full bg-olive px-3 text-[9.5px] font-medium text-cream disabled:opacity-50"
+                >
+                  {t("wishlist.undo")}
+                </button>
+              </div>
+            )}
 
             {activeRequirements.length === 0 ? (
               <div className="mt-3 rounded-[20px] border border-line bg-white/45 px-5 py-7 text-center">
@@ -618,6 +892,9 @@ export function WishlistScreen({
                         setEditing(requirement);
                         setEditorOpen(true);
                       }}
+                      manageMode={manageMode}
+                      selected={selectedIds.includes(requirement.id)}
+                      onToggle={() => toggleSelected(requirement.id)}
                     />
                   </div>
                 ))}
@@ -795,6 +1072,57 @@ export function WishlistScreen({
         </button>
       </div>
 
+      {viewMode === "priority" &&
+        manageMode &&
+        selectedIds.length > 0 && (
+          <div className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 mx-auto w-full max-w-[430px] px-4">
+            <div className="rounded-[20px] border border-line bg-cream/95 p-2.5 shadow-[0_18px_45px_-20px_rgba(36,34,31,0.55)] backdrop-blur-xl">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] tabular-nums text-muted">
+                  {selectedIds.length === 1
+                    ? t("wishlist.selectedOne")
+                    : t("wishlist.selectedCount", {
+                        count: selectedIds.length,
+                      })}
+                </p>
+                <button
+                  type="button"
+                  onClick={exitManage}
+                  className="min-h-8 rounded-full border border-line bg-white/70 px-3 text-[9.5px] font-medium text-ink"
+                >
+                  {t("common.done")}
+                </button>
+              </div>
+              <div
+                className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5"
+                role="group"
+                aria-label={t("wishlist.bulkActions")}
+              >
+                {bulkImportanceActions.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    onClick={() => applyBulkImportance(action.id)}
+                    disabled={bulkBusy}
+                    className="min-h-9 shrink-0 rounded-full border border-line bg-white/70 px-3 text-[9.5px] font-medium text-ink disabled:opacity-50"
+                  >
+                    {action.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={requestBulkDelete}
+                  disabled={bulkBusy}
+                  className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border border-clay/25 bg-clay/[0.06] px-3 text-[9.5px] font-medium text-clay disabled:opacity-50"
+                >
+                  <TrashIcon className="h-3 w-3" />
+                  {t("wishlist.bulkRemove")}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       {editorOpen && (
         <RequirementEditor
           key={editing?.id ?? `new-${activeId}`}
@@ -898,6 +1226,48 @@ export function WishlistScreen({
       >
         <p className="text-[12px] leading-5 text-muted">
           {t("wishlist.deleteBody")}
+        </p>
+      </Sheet>
+
+      <Sheet
+        open={bulkDeleteOpen}
+        title={
+          selectedIds.length === 1
+            ? t("wishlist.bulkDeleteTitleOne")
+            : t("wishlist.bulkDeleteTitle", {
+                count: selectedIds.length,
+              })
+        }
+        onClose={() => setBulkDeleteOpen(false)}
+        footer={
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setBulkDeleteOpen(false)}
+              className="min-h-11 flex-1 rounded-full border border-line bg-white/70 text-[12px] font-medium text-ink"
+            >
+              {t("common.cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={confirmBulkDelete}
+              disabled={bulkBusy}
+              className="min-h-11 flex-1 rounded-full bg-clay text-[12px] font-medium text-cream disabled:opacity-50"
+            >
+              {selectedIds.length === 1
+                ? t("wishlist.bulkDeleteConfirmOne")
+                : t("wishlist.bulkDeleteConfirm")}
+            </button>
+          </div>
+        }
+      >
+        <p className="text-[12px] leading-5 text-muted">
+          {t("wishlist.bulkDeleteBody", { name: activeName })}
+        </p>
+        <p className="mt-2 text-[11px] leading-4 text-muted">
+          {selectedIds.length === 1
+            ? t("wishlist.selectedOne")
+            : t("wishlist.selectedCount", { count: selectedIds.length })}
         </p>
       </Sheet>
     </div>

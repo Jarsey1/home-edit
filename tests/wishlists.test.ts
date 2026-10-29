@@ -5,6 +5,7 @@ import {
   duplicateWishlist,
   requirementsFromLegacy,
   requirementsFor,
+  suggestedRequirements,
   wishlistSetupProgress,
 } from "../app/lib/wishlists";
 import type { WishlistItem } from "../app/lib/types";
@@ -25,6 +26,16 @@ describe("wishlist management", () => {
     expect(requirements.every((entry) => entry.wishlistId === "w1")).toBe(true);
     expect(requirementsFor(requirements, "w1")).toHaveLength(requirements.length);
     expect(requirementsFor(requirements, "w2")).toHaveLength(0);
+  });
+
+  it("creates new-wishlist suggestions as unconfigured and not important", () => {
+    const suggestions = suggestedRequirements("w-new");
+    expect(suggestions.length).toBeGreaterThan(0);
+    expect(suggestions.every((entry) => entry.configured === false)).toBe(true);
+    expect(suggestions.every((entry) => entry.importance === "ignore")).toBe(
+      true,
+    );
+    expect(suggestions.every((entry) => entry.wishlistId === "w-new")).toBe(true);
   });
 
   it("duplicates a wishlist with new ids and copied values", () => {

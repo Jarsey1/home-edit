@@ -569,6 +569,22 @@ export function slug(value: string) {
     .slice(0, 48) || "custom";
 }
 
+/**
+ * Suggestions for a newly-created wishlist. They are deliberately
+ * unconfigured and not important so they never affect scoring until the user
+ * explicitly promotes them.
+ */
+export function suggestedRequirements(
+  wishlistId: string,
+): WishlistRequirement[] {
+  return defaultRequirements(wishlistId).map((requirement, index) => ({
+    ...requirement,
+    id: `${wishlistId}-suggested-${index}`,
+    configured: false,
+    importance: "ignore",
+  }));
+}
+
 export function duplicateWishlist(
   source: Wishlist,
   requirements: WishlistRequirement[],
