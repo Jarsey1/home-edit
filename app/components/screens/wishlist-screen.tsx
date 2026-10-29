@@ -11,7 +11,11 @@ import {
   useI18n,
   type TranslationKey,
 } from "../../lib/i18n";
-import type { Wishlist, WishlistRequirement } from "../../lib/v2-types";
+import type {
+  Importance,
+  Wishlist,
+  WishlistRequirement,
+} from "../../lib/v2-types";
 import { groupByCategory, wishlistSetupProgress } from "../../lib/wishlists";
 import { BackButton } from "../back-button";
 import { HouseIllustration } from "../house-illustration";
@@ -19,15 +23,19 @@ import { Sheet } from "../sheet";
 import { RequirementEditor } from "../wishlist-requirement-editor";
 import {
   ArrowRightIcon,
+  ChevronDownIcon,
   ChevronRightIcon,
   PencilIcon,
   PlusIcon,
   TrashIcon,
 } from "../icons";
 
-function ProgressBar({ value, className = "" }: { value: number; className?: string }) {
+type Filter = "must" | "nice" | "dealbreaker" | "all";
+type ViewMode = "priority" | "category";
+
+function ProgressBar({ value }: { value: number }) {
   return (
-    <div className={`h-1.5 flex-1 overflow-hidden rounded-full bg-sand ${className}`}>
+    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-sand">
       <div
         className="h-full rounded-full bg-olive transition-[width] duration-300"
         style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
@@ -66,7 +74,11 @@ function expectedLabel(
   return value === null || value === "" ? "—" : String(value);
 }
 
-function ImportanceBadge({ importance }: { importance: WishlistRequirement["importance"] }) {
+function ImportanceBadge({
+  importance,
+}: {
+  importance: WishlistRequirement["importance"];
+}) {
   const { t } = useI18n();
   const styles =
     importance === "must"
@@ -74,12 +86,86 @@ function ImportanceBadge({ importance }: { importance: WishlistRequirement["impo
       : importance === "dealbreaker"
         ? "border-clay/30 bg-clay/[0.08] text-clay"
         : importance === "nice"
-          ? "border-gold/30 bg-gold/[0.08] text-[#8a7048]"
+          ? "border-gold/30 bg-gold/[0.08] text-[#6b5535]"
           : "border-line bg-parchment text-muted";
   return (
-    <span className={`rounded-full border px-2 py-0.5 text-[8.5px] uppercase tracking-[0.08em] ${styles}`}>
+    <span
+      className={`rounded-full border px-2 py-0.5 text-[8.5px] uppercase tracking-[0.08em] ${styles}`}
+    >
       {t(importanceKey(importance))}
     </span>
+  );
+}
+
+function PriorityRow({
+  requirement,
+  onEdit,
+}: {
+  requirement: WishlistRequirement;
+  onEdit: () => void;
+}) {
+  const { t, locale } = useI18n();
+  const expected = expectedLabel(requirement, locale, t);
+  const name = translateRequirementName(
+    requirement.name,
+    locale,
+    Boolean(requirement.custom),
+  );
+
+  return (
+    <article className="flex items-start gap-3 px-4 py-3">
+      <span
+        aria-hidden="true"
+        className={[
+          "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full",
+          requirement.importance === "must"
+            ? "bg-olive"
+            : requirement.importance === "nice"
+              ? "bg-gold"
+              : requirement.importance === "dealbreaker"
+                ? "bg-clay"
+                : "bg-muted/40",
+        ].join(" ")}
+      />
+      <div className="min-w-0 flex-1">
+        <p
+          className={[
+            "text-[12.5px] leading-4",
+            requirement.configured ? "text-ink" : "text-muted",
+          ].join(" ")}
+        >
+          {name}
+        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[9.5px] text-muted">
+          {expected !== "—" && (
+            <>
+              <span className="tabular-nums">{expected}</span>
+              <span aria-hidden="true" className="text-muted/60">
+                ·
+              </span>
+            </>
+          )}
+          <span>{t(categoryKey(requirement.category))}</span>
+        </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          <ImportanceBadge importance={requirement.importance} />
+          {!requirement.configured && (
+            <span className="rounded-full border border-line bg-parchment px-1.5 py-0.5 text-[8px] uppercase tracking-[0.08em] text-muted">
+              {t("wishlist.draft")}
+            </span>
+          )}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label={t("wishlist.editAria", { name })}
+        className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border border-line bg-white/70 px-2.5 text-[9.5px] font-medium text-ink transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
+      >
+        <PencilIcon className="h-3 w-3 text-olive" />
+        {t("common.edit")}
+      </button>
+    </article>
   );
 }
 
@@ -106,6 +192,9 @@ export function WishlistScreen({
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<WishlistRequirement | null>(null);
   const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("priority");
+  const [filter, setFilter] = useState<Filter>("must");
+  const [manageOpen, setManageOpen] = useState(false);
   const [dialog, setDialog] = useState<"new" | "rename" | "delete" | null>(null);
   const [dialogName, setDialogName] = useState("");
   const [dialogBudget, setDialogBudget] = useState("");
@@ -121,11 +210,57 @@ export function WishlistScreen({
     [activeRequirements],
   );
 
+  const counts = useMemo(() => {
+    const byImportance = (importance: Importance) =>
+      activeRequirements.filter(
+        (requirement) => requirement.importance === importance,
+      ).length;
+    return {
+      must: byImportance("must"),
+      nice: byImportance("nice"),
+      dealbreaker: byImportance("dealbreaker"),
+      all: activeRequirements.length,
+    };
+  }, [activeRequirements]);
+
+  const filtered = useMemo(() => {
+    if (filter === "all") return activeRequirements;
+    return activeRequirements.filter(
+      (requirement) => requirement.importance === filter,
+    );
+  }, [activeRequirements, filter]);
+
+  const filterTabs: { id: Filter; label: string }[] = [
+    { id: "must", label: t("wishlist.filterMust", { count: counts.must }) },
+    { id: "nice", label: t("wishlist.filterNice", { count: counts.nice }) },
+    {
+      id: "dealbreaker",
+      label: t("wishlist.filterDealbreakers", {
+        count: counts.dealbreaker,
+      }),
+    },
+    { id: "all", label: t("wishlist.filterAll", { count: counts.all }) },
+  ];
+
+  const filterTitle =
+    filter === "must"
+      ? t("wishlist.myMustHaves")
+      : filter === "nice"
+        ? t("wishlist.myNiceToHaves")
+        : filter === "dealbreaker"
+          ? t("wishlist.myDealbreakers")
+          : t("wishlist.allRequirements");
+
   function openNew() {
     setDialogName("");
     setDialogBudget("");
     setDialogError("");
     setDialog("new");
+  }
+
+  function openNewRequirement() {
+    setEditing(null);
+    setEditorOpen(true);
   }
 
   function openRename(wishlist: Wishlist) {
@@ -185,6 +320,12 @@ export function WishlistScreen({
   const activeName = activeWishlist
     ? translateWishlistName(activeWishlist.name, locale)
     : "";
+  const draftImportance: Importance =
+    viewMode === "priority" && filter === "nice"
+      ? "nice"
+      : viewMode === "priority" && filter === "dealbreaker"
+        ? "dealbreaker"
+        : "must";
 
   return (
     <div className="flex flex-1 flex-col">
@@ -247,224 +388,377 @@ export function WishlistScreen({
         </div>
 
         {activeWishlist && (
-          <section className="mt-4 rounded-[26px] border border-line bg-parchment px-5 pb-5 pt-4">
+          <section className="mt-3 rounded-[24px] border border-line bg-parchment px-4 pb-3.5 pt-3.5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted">
+                <p className="text-[9px] font-medium uppercase tracking-[0.16em] text-muted">
                   {t("dashboard.activeWishlist")}
                 </p>
-                <h2 className="mt-1 break-words font-serif text-[24px] leading-tight tracking-[-0.01em] text-ink">
+                <h2 className="mt-0.5 break-words font-serif text-[21px] leading-tight tracking-[-0.01em] text-ink">
                   {activeName}
                 </h2>
               </div>
-              <span className="shrink-0 rounded-full bg-olive/[0.08] px-2.5 py-1 text-[9px] uppercase tracking-[0.1em] text-olive">
-                {t("wishlist.active")}
-              </span>
+              <button
+                type="button"
+                onClick={() => setManageOpen((value) => !value)}
+                aria-expanded={manageOpen}
+                aria-label={t("wishlist.manageAria")}
+                className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full border border-line bg-white/60 px-2.5 text-[9.5px] font-medium text-ink"
+              >
+                {manageOpen ? t("wishlist.hideManage") : t("wishlist.manage")}
+                <ChevronDownIcon
+                  className={[
+                    "h-3 w-3 transition-transform",
+                    manageOpen ? "rotate-180" : "",
+                  ].join(" ")}
+                />
+              </button>
             </div>
 
-            <div className="mt-4 flex items-center gap-3">
+            <div className="mt-2.5 flex items-center gap-3">
               <ProgressBar value={progress.percent} />
               <span className="shrink-0 text-[10px] tabular-nums text-muted">
                 {Math.round(progress.percent)}%
               </span>
             </div>
-            <p className="mt-2 text-[11px] text-muted">
+            <p className="mt-1.5 text-[10.5px] text-muted">
               {t("wishlist.progressDetail", {
                 done: progress.configured,
                 total: progress.total,
               })}
             </p>
-            <p className="mt-1 text-[10px] leading-4 text-muted">
-              {t("wishlist.progressNote")}
-            </p>
 
-            <div className="mt-4 flex items-end gap-2 border-t border-line/80 pt-4">
-              <label className="min-w-0 flex-1">
-                <span className="text-[10px] uppercase tracking-[0.14em] text-muted">
-                  {t("wishlist.budget")}
-                </span>
-                <input
-                  key={`${activeWishlist.id}-${activeWishlist.budget ?? ""}`}
-                  defaultValue={
-                    activeWishlist.budget ? String(activeWishlist.budget) : ""
-                  }
-                  onBlur={(event) => commitBudget(event.currentTarget.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      commitBudget(event.currentTarget.value);
-                      event.currentTarget.blur();
-                    }
-                  }}
-                  inputMode="numeric"
-                  placeholder={t("wishlist.budgetPlaceholder")}
-                  className="mt-1.5 w-full rounded-xl border border-line bg-white/60 px-3 py-2.5 text-[12px] tabular-nums text-ink outline-none transition-colors placeholder:text-muted/50 focus:border-olive/35 focus:ring-2 focus:ring-olive/15"
-                />
-              </label>
-              <p className="shrink-0 pb-2.5 text-[11px] tabular-nums text-muted">
-                {activeWishlist.budget
-                  ? formatPrice(activeWishlist.budget, locale)
-                  : "—"}
-              </p>
-            </div>
+            {manageOpen && (
+              <div className="mt-3 border-t border-line/80 pt-3">
+                <p className="text-[9.5px] leading-4 text-muted">
+                  {t("wishlist.progressNote")}
+                </p>
+                <div className="mt-3 flex items-end gap-2">
+                  <label className="min-w-0 flex-1">
+                    <span className="text-[9px] uppercase tracking-[0.14em] text-muted">
+                      {t("wishlist.budget")}
+                    </span>
+                    <input
+                      key={`${activeWishlist.id}-${activeWishlist.budget ?? ""}`}
+                      defaultValue={
+                        activeWishlist.budget
+                          ? String(activeWishlist.budget)
+                          : ""
+                      }
+                      onBlur={(event) =>
+                        commitBudget(event.currentTarget.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          commitBudget(event.currentTarget.value);
+                          event.currentTarget.blur();
+                        }
+                      }}
+                      inputMode="numeric"
+                      placeholder={t("wishlist.budgetPlaceholder")}
+                      className="mt-1 w-full rounded-xl border border-line bg-white/60 px-3 py-2 text-[11.5px] tabular-nums text-ink outline-none transition-colors placeholder:text-muted/50 focus:border-olive/35 focus:ring-2 focus:ring-olive/15"
+                    />
+                  </label>
+                  <p className="shrink-0 pb-2 text-[10.5px] tabular-nums text-muted">
+                    {activeWishlist.budget
+                      ? formatPrice(activeWishlist.budget, locale)
+                      : "—"}
+                  </p>
+                </div>
 
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => openRename(activeWishlist)}
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-white/60 px-3 text-[10.5px] font-medium text-ink transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
-              >
-                <PencilIcon className="h-3 w-3 text-olive" />
-                {t("wishlist.rename")}
-              </button>
-              <button
-                type="button"
-                onClick={confirmDuplicate}
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-white/60 px-3 text-[10.5px] font-medium text-ink transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
-              >
-                <PlusIcon className="h-3 w-3 text-olive" />
-                {t("wishlist.duplicate")}
-              </button>
-              <button
-                type="button"
-                onClick={() => setDialog("delete")}
-                disabled={wishlists.length <= 1}
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-white/60 px-3 text-[10.5px] font-medium text-muted transition-colors hover:border-clay/30 hover:text-clay focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay/30 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <TrashIcon className="h-3 w-3" />
-                {t("wishlist.delete")}
-              </button>
-            </div>
+                <div className="mt-2.5 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openRename(activeWishlist)}
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-white/60 px-3 text-[10px] font-medium text-ink"
+                  >
+                    <PencilIcon className="h-3 w-3 text-olive" />
+                    {t("wishlist.rename")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmDuplicate}
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-white/60 px-3 text-[10px] font-medium text-ink"
+                  >
+                    <PlusIcon className="h-3 w-3 text-olive" />
+                    {t("wishlist.duplicate")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDialog("delete")}
+                    disabled={wishlists.length <= 1}
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-white/60 px-3 text-[10px] font-medium text-muted transition-colors hover:border-clay/30 hover:text-clay disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <TrashIcon className="h-3 w-3" />
+                    {t("wishlist.delete")}
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
         )}
 
-        <section className="mt-6">
-          <div className="flex items-center justify-between">
-            <h2 className="font-serif text-[22px] tracking-[-0.01em] text-ink">
-              {t("wishlist.summary")}
-            </h2>
+        <div className="mt-4 flex rounded-full border border-line bg-parchment p-1">
+          {(
+            [
+              { id: "priority" as const, label: t("wishlist.viewByPriority") },
+              { id: "category" as const, label: t("wishlist.viewByCategory") },
+            ]
+          ).map((option) => (
             <button
+              key={option.id}
               type="button"
-              onClick={() => {
-                setEditing(null);
-                setEditorOpen(true);
-              }}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-olive px-3.5 text-[10.5px] font-medium text-cream transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
+              onClick={() => setViewMode(option.id)}
+              aria-pressed={viewMode === option.id}
+              className={[
+                "min-h-9 flex-1 rounded-full px-2 text-[10.5px] transition-colors",
+                viewMode === option.id
+                  ? "bg-olive font-medium text-cream shadow-sm"
+                  : "text-muted hover:text-ink",
+              ].join(" ")}
             >
-              <PlusIcon className="h-3.5 w-3.5" />
-              {t("wishlist.addRequirement")}
+              {option.label}
             </button>
-          </div>
+          ))}
+        </div>
 
-          {groups.length === 0 ? (
-            <div className="mt-4 rounded-[20px] border border-line bg-white/45 px-5 py-8 text-center">
-              <p className="font-serif text-[18px] text-ink">
-                {t("wishlist.noRequirements")}
-              </p>
-              <p className="mt-2 text-[11px] leading-5 text-muted">
-                {t("wishlist.noRequirementsBody")}
-              </p>
-            </div>
-          ) : (
-            <div className="mt-4 space-y-2.5">
-              {groups.map(({ category, items }) => {
-                const isOpen = openCategory === category;
-                const configured = items.filter((item) => item.configured).length;
-                const percent = (configured / Math.max(1, items.length)) * 100;
+        {viewMode === "priority" && (
+          <>
+            <div
+              className="-mx-6 mt-3 flex gap-2 overflow-x-auto px-6 pb-1"
+              role="group"
+              aria-label={t("wishlist.filterAria")}
+            >
+              {filterTabs.map((tab) => {
+                const isActive = filter === tab.id;
                 return (
-                  <div
-                    key={category}
-                    className="overflow-hidden rounded-[20px] border border-line bg-white/50"
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setFilter(tab.id)}
+                    aria-pressed={isActive}
+                    className={[
+                      "min-h-9 shrink-0 rounded-full border px-3 text-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40",
+                      isActive
+                        ? "border-olive bg-olive font-medium text-cream"
+                        : "border-line bg-white/55 text-muted hover:text-ink",
+                    ].join(" ")}
                   >
-                    <button
-                      type="button"
-                      onClick={() => setOpenCategory(isOpen ? null : category)}
-                      aria-expanded={isOpen}
-                      className="w-full px-4 pb-3.5 pt-3.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-olive/30"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-[13px] font-medium text-ink">
-                          {t(categoryKey(category))}
-                        </span>
-                        <span className="text-[10px] tabular-nums text-muted">
-                          {configured}/{items.length}
-                        </span>
-                      </div>
-                      <div className="mt-3 flex items-center gap-2.5">
-                        <ProgressBar value={percent} />
-                        <ChevronRightIcon
-                          className={[
-                            "h-3.5 w-3.5 shrink-0 text-muted transition-transform",
-                            isOpen ? "rotate-90" : "",
-                          ].join(" ")}
-                        />
-                      </div>
-                    </button>
-
-                    {isOpen && (
-                      <ul className="border-t border-line/80 px-2 py-1.5">
-                        {items.map((requirement) => (
-                          <li key={requirement.id}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditing(requirement);
-                                setEditorOpen(true);
-                              }}
-                              className="flex w-full items-start gap-2.5 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-parchment/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-olive/30"
-                            >
-                              <span
-                                className={[
-                                  "mt-1 h-1.5 w-1.5 shrink-0 rounded-full",
-                                  requirement.importance === "must"
-                                    ? "bg-olive"
-                                    : requirement.importance === "nice"
-                                      ? "bg-gold"
-                                      : requirement.importance === "dealbreaker"
-                                        ? "bg-clay"
-                                        : "bg-muted/40",
-                                ].join(" ")}
-                              />
-                              <span className="min-w-0 flex-1">
-                                <span
-                                  className={[
-                                    "block text-[12px] leading-4",
-                                    requirement.configured
-                                      ? "text-ink/90"
-                                      : "text-muted",
-                                  ].join(" ")}
-                                >
-                                  {translateRequirementName(
-                                    requirement.name,
-                                    locale,
-                                  )}
-                                </span>
-                                <span className="mt-1 flex flex-wrap items-center gap-1.5">
-                                  <span className="text-[9.5px] tabular-nums text-muted">
-                                    {expectedLabel(requirement, locale, t)}
-                                  </span>
-                                  <ImportanceBadge
-                                    importance={requirement.importance}
-                                  />
-                                  {!requirement.configured && (
-                                    <span className="rounded-full border border-line bg-parchment px-1.5 py-0.5 text-[8px] uppercase tracking-[0.08em] text-muted">
-                                      {t("wishlist.draft")}
-                                    </span>
-                                  )}
-                                </span>
-                              </span>
-                              <ChevronRightIcon className="mt-1 h-3.5 w-3.5 shrink-0 text-muted/50" />
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                    {tab.label}
+                  </button>
                 );
               })}
             </div>
-          )}
-        </section>
+
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <h2 className="font-serif text-[21px] tracking-[-0.01em] text-ink">
+                {filterTitle}
+              </h2>
+              <button
+                type="button"
+                onClick={openNewRequirement}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-olive px-3 text-[10px] font-medium text-cream"
+              >
+                <PlusIcon className="h-3.5 w-3.5" />
+                {t("wishlist.addRequirement")}
+              </button>
+            </div>
+
+            {activeRequirements.length === 0 ? (
+              <div className="mt-3 rounded-[20px] border border-line bg-white/45 px-5 py-7 text-center">
+                <p className="font-serif text-[18px] text-ink">
+                  {t("wishlist.noRequirements")}
+                </p>
+                <p className="mt-2 text-[11px] leading-5 text-muted">
+                  {t("wishlist.noRequirementsBody")}
+                </p>
+                <button
+                  type="button"
+                  onClick={openNewRequirement}
+                  className="mt-3 inline-flex min-h-10 items-center gap-1.5 rounded-full bg-olive px-4 text-[11px] font-medium text-cream"
+                >
+                  <PlusIcon className="h-3.5 w-3.5" />
+                  {t("wishlist.addRequirement")}
+                </button>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="mt-3 rounded-[20px] border border-line bg-white/45 px-5 py-7 text-center">
+                <p className="font-serif text-[18px] text-ink">
+                  {filter === "must"
+                    ? t("wishlist.emptyMust")
+                    : t("wishlist.emptyFilter")}
+                </p>
+                <p className="mt-2 text-[11px] leading-5 text-muted">
+                  {filter === "must"
+                    ? t("wishlist.emptyMustBody")
+                    : t("wishlist.emptyFilterBody")}
+                </p>
+                <button
+                  type="button"
+                  onClick={openNewRequirement}
+                  className="mt-3 inline-flex min-h-10 items-center gap-1.5 rounded-full bg-olive px-4 text-[11px] font-medium text-cream"
+                >
+                  <PlusIcon className="h-3.5 w-3.5" />
+                  {t("wishlist.addRequirement")}
+                </button>
+              </div>
+            ) : (
+              <div className="mt-3 overflow-hidden rounded-[20px] border border-line bg-white/55">
+                {filtered.map((requirement, index) => (
+                  <div
+                    key={requirement.id}
+                    className={
+                      index > 0 ? "border-t border-line/70" : ""
+                    }
+                  >
+                    <PriorityRow
+                      requirement={requirement}
+                      onEdit={() => {
+                        setEditing(requirement);
+                        setEditorOpen(true);
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {viewMode === "category" && (
+          <section className="mt-4">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-serif text-[21px] tracking-[-0.01em] text-ink">
+                {t("wishlist.summary")}
+              </h2>
+              <button
+                type="button"
+                onClick={openNewRequirement}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-olive px-3 text-[10px] font-medium text-cream"
+              >
+                <PlusIcon className="h-3.5 w-3.5" />
+                {t("wishlist.addRequirement")}
+              </button>
+            </div>
+
+            {groups.length === 0 ? (
+              <div className="mt-3 rounded-[20px] border border-line bg-white/45 px-5 py-7 text-center">
+                <p className="font-serif text-[18px] text-ink">
+                  {t("wishlist.noRequirements")}
+                </p>
+                <p className="mt-2 text-[11px] leading-5 text-muted">
+                  {t("wishlist.noRequirementsBody")}
+                </p>
+              </div>
+            ) : (
+              <div className="mt-3 space-y-2.5">
+                {groups.map(({ category, items }) => {
+                  const isOpen = openCategory === category;
+                  const configured = items.filter(
+                    (item) => item.configured,
+                  ).length;
+                  const percent =
+                    (configured / Math.max(1, items.length)) * 100;
+                  return (
+                    <div
+                      key={category}
+                      className="overflow-hidden rounded-[20px] border border-line bg-white/50"
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenCategory(isOpen ? null : category)
+                        }
+                        aria-expanded={isOpen}
+                        className="w-full px-4 pb-3.5 pt-3.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-olive/30"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-[13px] font-medium text-ink">
+                            {t(categoryKey(category))}
+                          </span>
+                          <span className="text-[10px] tabular-nums text-muted">
+                            {configured}/{items.length}
+                          </span>
+                        </div>
+                        <div className="mt-3 flex items-center gap-2.5">
+                          <ProgressBar value={percent} />
+                          <ChevronRightIcon
+                            className={[
+                              "h-3.5 w-3.5 shrink-0 text-muted transition-transform",
+                              isOpen ? "rotate-90" : "",
+                            ].join(" ")}
+                          />
+                        </div>
+                      </button>
+
+                      {isOpen && (
+                        <ul className="border-t border-line/80 px-2 py-1.5">
+                          {items.map((requirement) => (
+                            <li key={requirement.id}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditing(requirement);
+                                  setEditorOpen(true);
+                                }}
+                                className="flex w-full items-start gap-2.5 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-parchment/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-olive/30"
+                              >
+                                <span
+                                  className={[
+                                    "mt-1 h-1.5 w-1.5 shrink-0 rounded-full",
+                                    requirement.importance === "must"
+                                      ? "bg-olive"
+                                      : requirement.importance === "nice"
+                                        ? "bg-gold"
+                                        : requirement.importance ===
+                                            "dealbreaker"
+                                          ? "bg-clay"
+                                          : "bg-muted/40",
+                                  ].join(" ")}
+                                />
+                                <span className="min-w-0 flex-1">
+                                  <span
+                                    className={[
+                                      "block text-[12px] leading-4",
+                                      requirement.configured
+                                        ? "text-ink/90"
+                                        : "text-muted",
+                                    ].join(" ")}
+                                  >
+                                    {translateRequirementName(
+                                      requirement.name,
+                                      locale,
+                                      Boolean(requirement.custom),
+                                    )}
+                                  </span>
+                                  <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                                    <span className="text-[9.5px] tabular-nums text-muted">
+                                      {expectedLabel(requirement, locale, t)}
+                                    </span>
+                                    <ImportanceBadge
+                                      importance={requirement.importance}
+                                    />
+                                    {!requirement.configured && (
+                                      <span className="rounded-full border border-line bg-parchment px-1.5 py-0.5 text-[8px] uppercase tracking-[0.08em] text-muted">
+                                        {t("wishlist.draft")}
+                                      </span>
+                                    )}
+                                  </span>
+                                </span>
+                                <ChevronRightIcon className="mt-1 h-3.5 w-3.5 shrink-0 text-muted/50" />
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
 
         <section className="mt-5 rounded-[20px] border border-line bg-parchment/70 px-4 py-3.5">
           <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted">
@@ -507,6 +801,7 @@ export function WishlistScreen({
           open
           wishlistId={activeId}
           requirement={editing}
+          defaultImportance={draftImportance}
           onClose={() => {
             setEditorOpen(false);
             setEditing(null);
@@ -516,9 +811,7 @@ export function WishlistScreen({
 
       <Sheet
         open={dialog === "new" || dialog === "rename"}
-        title={
-          dialog === "new" ? t("wishlist.new") : t("wishlist.rename")
-        }
+        title={dialog === "new" ? t("wishlist.new") : t("wishlist.rename")}
         onClose={() => setDialog(null)}
         footer={
           <button

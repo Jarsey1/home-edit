@@ -393,6 +393,26 @@ export const en = {
     "Unknown information never counts against a home. A dealbreaker disqualifies a home only when it is confirmed.",
   "wishlist.summary": "Preferences",
   "wishlist.percentConfigured": "{percent}% configured",
+  "wishlist.manage": "Manage",
+  "wishlist.manageAria": "Manage wishlist",
+  "wishlist.hideManage": "Hide details",
+  "wishlist.viewByPriority": "By Priority",
+  "wishlist.viewByCategory": "By Category",
+  "wishlist.filterAria": "Filter requirements by priority",
+  "wishlist.filterMust": "Must-Haves ({count})",
+  "wishlist.filterNice": "Nice-To-Haves ({count})",
+  "wishlist.filterDealbreakers": "Dealbreakers ({count})",
+  "wishlist.filterAll": "All ({count})",
+  "wishlist.myMustHaves": "My Must-Haves",
+  "wishlist.myNiceToHaves": "My Nice-To-Haves",
+  "wishlist.myDealbreakers": "My Dealbreakers",
+  "wishlist.allRequirements": "All Requirements",
+  "wishlist.emptyMust": "No must-haves selected yet.",
+  "wishlist.emptyMustBody":
+    "Add the features that are essential for your next home.",
+  "wishlist.emptyFilter": "No requirements in this view.",
+  "wishlist.emptyFilterBody": "Switch filters or add a new requirement.",
+  "wishlist.editAria": "Edit {name}",
 
   "tour.eyebrow": "Your impressions",
   "tour.title": "Tour Notes",
@@ -1169,6 +1189,27 @@ const es: Record<TranslationKey, string> = {
     "La información desconocida nunca cuenta en contra de una casa. Una condición eliminatoria descalifica solo cuando se confirma.",
   "wishlist.summary": "Preferencias",
   "wishlist.percentConfigured": "{percent}% configurado",
+  "wishlist.manage": "Gestionar",
+  "wishlist.manageAria": "Gestionar lista",
+  "wishlist.hideManage": "Ocultar detalles",
+  "wishlist.viewByPriority": "Por prioridad",
+  "wishlist.viewByCategory": "Por categoría",
+  "wishlist.filterAria": "Filtrar preferencias por prioridad",
+  "wishlist.filterMust": "Imprescindibles ({count})",
+  "wishlist.filterNice": "Deseos ({count})",
+  "wishlist.filterDealbreakers": "Eliminatorias ({count})",
+  "wishlist.filterAll": "Todo ({count})",
+  "wishlist.myMustHaves": "Mis imprescindibles",
+  "wishlist.myNiceToHaves": "Mis deseos",
+  "wishlist.myDealbreakers": "Mis condiciones eliminatorias",
+  "wishlist.allRequirements": "Todas las preferencias",
+  "wishlist.emptyMust": "Aún no hay imprescindibles.",
+  "wishlist.emptyMustBody":
+    "Agrega las características esenciales para tu próxima casa.",
+  "wishlist.emptyFilter": "No hay preferencias en esta vista.",
+  "wishlist.emptyFilterBody":
+    "Cambia el filtro o agrega una nueva preferencia.",
+  "wishlist.editAria": "Editar {name}",
 
   "tour.eyebrow": "Tus impresiones",
   "tour.title": "Notas de visita",
@@ -1696,7 +1737,25 @@ export function translateWishlistName(value: string, locale: Locale) {
 }
 
 /** Default requirement names are translated; custom text is never rewritten. */
-export function translateRequirementName(value: string, locale: Locale) {
+export function translateRequirementName(
+  value: string,
+  locale: Locale,
+  custom = false,
+) {
+  if (locale !== "es" || custom) return value;
+
+  const bedrooms = value.match(/^At least (\d+)\s+bedrooms?$/i);
+  if (bedrooms) return `Al menos ${bedrooms[1]} habitaciones`;
+
+  const bathrooms = value.match(/^At least ([\d.]+)\s+bathrooms?$/i);
+  if (bathrooms) return `Al menos ${bathrooms[1]} baños`;
+
+  const garage = value.match(/^Garage for (\d+)\s+cars?$/i);
+  if (garage) return `Garaje para ${garage[1]} autos`;
+
+  const offices = value.match(/^(\d+)\s+office spaces?$/i);
+  if (offices) return `${offices[1]} espacios de oficina`;
+
   return translateWishlistText(value, locale);
 }
 

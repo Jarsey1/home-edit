@@ -563,7 +563,11 @@ export function EditPropertyScreen({
                   <div key={feature.key}>
                     <p className="text-[10px] text-muted">
                       {translateWishlistText(
-                        translateRequirementName(feature.label, locale),
+                        translateRequirementName(
+                          feature.label,
+                          locale,
+                          feature.key.startsWith("custom:"),
+                        ),
                         locale,
                       )}{" "}
                     </p>

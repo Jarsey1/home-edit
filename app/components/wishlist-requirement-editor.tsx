@@ -34,11 +34,13 @@ export function RequirementEditor({
   open,
   wishlistId,
   requirement,
+  defaultImportance = "must",
   onClose,
 }: {
   open: boolean;
   wishlistId: string;
   requirement: WishlistRequirement | null;
+  defaultImportance?: Importance;
   onClose: () => void;
 }) {
   const { addRequirement, updateRequirement, removeRequirement } = useAppData();
@@ -71,7 +73,7 @@ export function RequirementEditor({
   const [featureKey, setFeatureKey] = useState(requirement?.featureKey ?? "beds");
   const [type, setType] = useState<RequirementType>(requirement?.type ?? "min");
   const [importance, setImportance] = useState<Importance>(
-    requirement?.importance ?? "must",
+    requirement?.importance ?? defaultImportance,
   );
   const [expectedBoolean, setExpectedBoolean] = useState(
     initialExpected === true || initialExpected === undefined,
@@ -489,7 +491,11 @@ export function RequirementEditor({
 
         {editing && requirement && (
           <p className="text-[10px] text-muted">
-            {translateRequirementName(requirement.name, locale)}
+            {translateRequirementName(
+              requirement.name,
+              locale,
+              Boolean(requirement.custom),
+            )}
             {catalogFeature
               ? ` · ${translateWishlistText(catalogFeature.label, locale)}`
               : ""}

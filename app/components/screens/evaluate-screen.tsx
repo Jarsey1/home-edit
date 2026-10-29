@@ -407,6 +407,7 @@ export function EvaluateScreen({
                                     {translateRequirementName(
                                       row.requirement.name,
                                       locale,
+                                      Boolean(row.requirement.custom),
                                     )}
                                   </p>
                                   <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[9.5px] text-muted">
@@ -489,6 +490,7 @@ export function EvaluateScreen({
                                         name: translateRequirementName(
                                           row.requirement.name,
                                           locale,
+                                          Boolean(row.requirement.custom),
                                         ),
                                       })}
                                       className={[

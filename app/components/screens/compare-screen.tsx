@@ -1114,7 +1114,11 @@ function MustHavesSheet({
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block text-[11.5px] font-medium leading-4 text-ink">
-                      {translateRequirementName(requirement.name, locale)}
+                      {translateRequirementName(
+                        requirement.name,
+                        locale,
+                        Boolean(requirement.custom),
+                      )}
                     </span>
                     <span className="mt-0.5 block text-[9.5px] text-muted">
                       {t(
