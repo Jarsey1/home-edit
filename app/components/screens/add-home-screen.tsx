@@ -9,8 +9,14 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useAppData } from "../../lib/app-data";
+import { findState, US_STATES } from "../../lib/us-states";
 import { BackButton } from "../back-button";
-import { CheckIcon, MapPinIcon, SearchIcon } from "../icons";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  MapPinIcon,
+  SearchIcon,
+} from "../icons";
 
 type Suggestion = {
   id: string;
@@ -18,6 +24,8 @@ type Suggestion = {
   secondary: string;
   address: string;
   city: string;
+  state: string;
+  stateCode: string;
 };
 
 type SearchResponse = {
@@ -44,10 +52,12 @@ export function AddHomeScreen({
   const inputRef = useRef<HTMLInputElement>(null);
   const listId = useId();
   const addressId = useId();
+  const stateId = useId();
   const cityId = useId();
 
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Suggestion | null>(null);
+  const [stateCode, setStateCode] = useState("");
   const [city, setCity] = useState("");
   const [price, setPrice] = useState("");
   const [beds, setBeds] = useState("");
@@ -69,6 +79,7 @@ export function AddHomeScreen({
       (home) => home.address.trim().toLowerCase() === address.toLowerCase(),
     );
   const showList = open && !selected && query.trim().length >= 4;
+  const selectedState = findState(stateCode);
 
   // Debounced address lookup. Each keystroke cancels the previous request.
   useEffect(() => {
@@ -81,9 +92,16 @@ export function AddHomeScreen({
       setLoading(true);
       setSearchFailed(false);
 
-      fetch(`/api/address-search?q=${encodeURIComponent(trimmed)}`, {
-        signal: controller.signal,
-      })
+      const stateParam = stateCode
+        ? `&state=${encodeURIComponent(stateCode)}`
+        : "";
+
+      fetch(
+        `/api/address-search?q=${encodeURIComponent(trimmed)}${stateParam}`,
+        {
+          signal: controller.signal,
+        },
+      )
         .then(async (response) => {
           if (!response.ok) throw new Error(`Lookup failed ${response.status}`);
           return (await response.json()) as SearchResponse;
@@ -112,7 +130,7 @@ export function AddHomeScreen({
       controller.abort();
       clearTimeout(timer);
     };
-  }, [query, selected]);
+  }, [query, selected, stateCode]);
 
   function changeQuery(value: string) {
     setQuery(value);
@@ -125,10 +143,21 @@ export function AddHomeScreen({
     setOpen(false);
   }
 
+  function changeState(value: string) {
+    setStateCode(value);
+    setSuggestions([]);
+    setSearchFailed(false);
+    setLoading(false);
+    setActiveIndex(-1);
+    setOpen(false);
+    setError(null);
+  }
+
   function choose(suggestion: Suggestion) {
     setSelected(suggestion);
     setQuery(suggestion.address);
     setCity(suggestion.city);
+    if (suggestion.stateCode) setStateCode(suggestion.stateCode);
     setSuggestions([]);
     setSearchFailed(false);
     setLoading(false);
@@ -220,14 +249,47 @@ export function AddHomeScreen({
 
       <div className="px-6 pb-10 pt-5">
         <p className="text-[12px] leading-5 text-muted">
-          Start typing a street address and pick the closest match. You can add
-          the details you know and fill in the rest later.
+          Pick a state to make suggestions more accurate, then start typing a
+          street address and choose the closest match. You can add the details
+          you know and fill in the rest later.
         </p>
 
         <form onSubmit={submit} className="mt-5">
+          <div>
+            <label
+              htmlFor={stateId}
+              className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted"
+            >
+              State <span className="normal-case text-muted/70">(optional)</span>
+            </label>
+
+            <div className="relative mt-2">
+              <select
+                id={stateId}
+                value={stateCode}
+                onChange={(event) => changeState(event.target.value)}
+                className="w-full appearance-none rounded-2xl border border-line bg-white/60 py-3 pl-4 pr-10 text-[13px] text-ink outline-none transition-colors focus:border-olive/35 focus:ring-2 focus:ring-olive/15"
+              >
+                <option value="">Any state</option>
+                {US_STATES.map((state) => (
+                  <option key={state.code} value={state.code}>
+                    {state.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDownIcon className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
+            </div>
+
+            <p className="mt-2 text-[10px] leading-4 text-muted">
+              {selectedState
+                ? `Address suggestions will be narrowed to ${selectedState.name}.`
+                : "Choosing a state first narrows the address suggestions to that state."}
+            </p>
+          </div>
+
           <label
             htmlFor={addressId}
-            className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted"
+            className="mt-5 block text-[10px] font-medium uppercase tracking-[0.16em] text-muted"
           >
             Street address
           </label>

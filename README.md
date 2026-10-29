@@ -60,10 +60,11 @@ Built with Next.js (App Router), React, Tailwind CSS and Supabase.
 
 ## Adding a home
 
-Tap the **+** button on the Dashboard, then start typing a street address. As
-you type, the app asks its own `/api/address-search` route for suggestions and
-shows the closest matches. Pick one to fill in the street and city automatically,
-or keep typing and submit the address manually if it is not listed.
+Tap the **+** button on the Dashboard. Optionally choose a state first to narrow
+the lookup, then start typing a street address. As you type, the app asks its
+own `/api/address-search` route for suggestions and shows the closest matches.
+Pick one to fill in the street and city automatically, or keep typing and submit
+the address manually if it is not listed.
 
 Price, beds, baths and square footage are optional. New homes are saved to the
 shortlist by default and appear in Compare Homes and the rest of the app. Homes
@@ -71,9 +72,11 @@ without a price or specs show friendly placeholders (`Price TBD`, `—`, `New`)
 until you fill them in later.
 
 Address suggestions come from [Photon](https://photon.komoot.io/), an
-OpenStreetMap-based geocoder. It is free and does not need an API key. Results
-are cached in memory for 10 minutes by the route handler; if the service is
-unreachable, manual address entry still works.
+OpenStreetMap-based geocoder. It is free and does not need an API key. When a
+state is selected, the route adds the state name to the Photon query, filters
+the ranked results down to that state, and retries the plain query if nothing
+matches. Results are cached in memory for 10 minutes by the route handler; if
+the service is unreachable, manual address entry still works.
 
 ## Working from another laptop
 
