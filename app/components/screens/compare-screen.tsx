@@ -229,7 +229,7 @@ export function CompareScreen({
   onOpenBudget: (homeId: string) => void;
   onOpenWishlist: () => void;
   onEvaluate: (homeId: string) => void;
-  onEditProperty: (homeId: string) => void;
+  onEditProperty: (homeId: string, featureKey?: string) => void;
   onOpenRequirement: (requirementId: string) => void;
   onAddHome: () => void;
 }) {
@@ -1241,9 +1241,9 @@ export function CompareScreen({
           onOpenRequirement(requirementId);
         }}
         onActivate={activateRequirements}
-        onEditProperty={(homeId) => {
+        onEditProperty={(homeId, featureKey) => {
           setMissingInfoFor(null);
-          onEditProperty(homeId);
+          onEditProperty(homeId, featureKey);
         }}
         onEvaluate={(homeId) => {
           setMissingInfoFor(null);
@@ -1341,7 +1341,7 @@ function MissingInfoSheet({
   rows: EvaluationRow[];
   hasScoreableRequirements: boolean;
   onClose: () => void;
-  onEditProperty: (homeId: string) => void;
+  onEditProperty: (homeId: string, featureKey?: string) => void;
   onEditRequirement: (requirementId: string) => void;
   onActivate: (
     requirementIds: string[],
@@ -1579,7 +1579,12 @@ function MissingInfoSheet({
                         ) : row.resolved === "unknown" ? (
                           <button
                             type="button"
-                            onClick={() => onEditProperty(entry.home.id)}
+                            onClick={() =>
+                              onEditProperty(
+                                entry.home.id,
+                                row.requirement.featureKey,
+                              )
+                            }
                             className="min-h-8 shrink-0 rounded-full border border-olive/25 bg-white/70 px-2.5 text-[9px] font-medium text-olive"
                           >
                             {t("compare.addDetails")}

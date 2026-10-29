@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAppData } from "../../lib/app-data";
 import { formatLotSize, type Home } from "../../lib/homes";
 import {
@@ -50,9 +50,11 @@ const CORE_FACT_KEYS = new Set([
 export function EditPropertyScreen({
   home,
   onBack,
+  focusFeatureKey = null,
 }: {
   home: Home;
   onBack: () => void;
+  focusFeatureKey?: string | null;
 }) {
   const { updateHome, activeRequirements } = useAppData();
   const { t, locale } = useI18n();
@@ -97,6 +99,27 @@ export function EditPropertyScreen({
     "idle" | "saving" | "shared" | "local" | "partial"
   >("idle");
   const [confirmSuspicious, setConfirmSuspicious] = useState(false);
+
+  useEffect(() => {
+    if (!focusFeatureKey) return;
+    const alias =
+      focusFeatureKey === "excludedCity"
+        ? "city"
+        : focusFeatureKey === "monthlyOwnershipCost"
+          ? "price"
+          : focusFeatureKey;
+    // Wait for the previous sheet to release the body scroll lock, then bring
+    // the exact fact into view and focus it.
+    const timer = window.setTimeout(() => {
+      const target = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-feature-key]"),
+      ).find((element) => element.dataset.featureKey === alias);
+      if (!target) return;
+      target.focus({ preventScroll: true });
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [focusFeatureKey]);
 
   const draft = {
     price,
@@ -281,6 +304,7 @@ export function EditPropertyScreen({
             </label>
             <input
               id="edit-city"
+              data-feature-key="city"
               value={city}
               onChange={(event) => setCity(event.target.value)}
               className={`${fieldClass} mt-2`}
@@ -290,6 +314,8 @@ export function EditPropertyScreen({
           <label className="block">
             <span className="text-[10px] text-muted">{t("edit.price")}</span>
             <input
+              id="edit-price"
+              data-feature-key="price"
               value={price}
               onChange={(event) => setPrice(event.target.value)}
               type="number"
@@ -310,6 +336,8 @@ export function EditPropertyScreen({
             <label className="block">
               <span className="text-[10px] text-muted">{t("edit.beds")}</span>
               <input
+                id="edit-beds"
+                data-feature-key="beds"
                 value={beds}
                 onChange={(event) => setBeds(event.target.value)}
                 type="number"
@@ -325,6 +353,8 @@ export function EditPropertyScreen({
             <label className="block">
               <span className="text-[10px] text-muted">{t("edit.baths")}</span>
               <input
+                id="edit-baths"
+                data-feature-key="baths"
                 value={baths}
                 onChange={(event) => setBaths(event.target.value)}
                 type="number"
@@ -340,6 +370,8 @@ export function EditPropertyScreen({
             <label className="block">
               <span className="text-[10px] text-muted">{t("edit.sqft")}</span>
               <input
+                id="edit-sqft"
+                data-feature-key="sqft"
                 value={sqft}
                 onChange={(event) => setSqft(event.target.value)}
                 type="number"
@@ -355,6 +387,8 @@ export function EditPropertyScreen({
             <label className="block">
               <span className="text-[10px] text-muted">{t("edit.lotAcres")}</span>
               <input
+                id="edit-lot-acres"
+                data-feature-key="lotAcres"
                 value={lotAcres}
                 onChange={(event) => setLotAcres(event.target.value)}
                 type="number"
@@ -370,6 +404,8 @@ export function EditPropertyScreen({
             <label className="block">
               <span className="text-[10px] text-muted">{t("edit.garage")}</span>
               <input
+                id="edit-garage"
+                data-feature-key="garageCars"
                 value={garageCars}
                 onChange={(event) => setGarageCars(event.target.value)}
                 type="number"
@@ -385,6 +421,8 @@ export function EditPropertyScreen({
             <label className="block">
               <span className="text-[10px] text-muted">{t("edit.hoa")}</span>
               <input
+                id="edit-hoa"
+                data-feature-key="hoa"
                 value={hoa}
                 onChange={(event) => setHoa(event.target.value)}
                 type="number"
@@ -400,6 +438,8 @@ export function EditPropertyScreen({
             <label className="block">
               <span className="text-[10px] text-muted">{t("edit.yearBuilt")}</span>
               <input
+                id="edit-year-built"
+                data-feature-key="yearBuilt"
                 value={yearBuilt}
                 onChange={(event) => setYearBuilt(event.target.value)}
                 type="number"
@@ -415,6 +455,8 @@ export function EditPropertyScreen({
             <label className="block">
               <span className="text-[10px] text-muted">{t("edit.propertyType")}</span>
               <input
+                id="edit-property-type"
+                data-feature-key="propertyType"
                 value={type}
                 onChange={(event) => setType(event.target.value)}
                 className={`${fieldClass} mt-1.5`}
@@ -426,6 +468,8 @@ export function EditPropertyScreen({
             <label className="block">
               <span className="text-[10px] text-muted">{t("edit.pool")}</span>
               <select
+                id="edit-pool"
+                data-feature-key="pool"
                 value={factValue("pool") === true ? "yes" : factValue("pool") === false ? "no" : "unknown"}
                 onChange={(event) =>
                   setFact(
@@ -447,6 +491,8 @@ export function EditPropertyScreen({
             <label className="block">
               <span className="text-[10px] text-muted">{t("edit.gated")}</span>
               <select
+                id="edit-gated"
+                data-feature-key="gated"
                 value={factValue("gated") === true ? "yes" : factValue("gated") === false ? "no" : "unknown"}
                 onChange={(event) =>
                   setFact(
@@ -573,6 +619,8 @@ export function EditPropertyScreen({
                     </p>
                     {feature.kind === "boolean" ? (
                       <select
+                        id={`fact-${feature.key}`}
+                        data-feature-key={feature.key}
                         value={value === true ? "yes" : value === false ? "no" : "unknown"}
                         onChange={(event) =>
                           setFact(
@@ -593,6 +641,8 @@ export function EditPropertyScreen({
                       </select>
                     ) : feature.kind === "number" ? (
                       <input
+                        id={`fact-${feature.key}`}
+                        data-feature-key={feature.key}
                         value={typeof value === "number" ? String(value) : value === null || value === undefined ? "" : String(value)}
                         onChange={(event) => {
                           const raw = event.target.value;
@@ -612,6 +662,8 @@ export function EditPropertyScreen({
                       />
                     ) : (
                       <input
+                        id={`fact-${feature.key}`}
+                        data-feature-key={feature.key}
                         value={value === null || value === undefined ? "" : String(value)}
                         onChange={(event) =>
                           setFact(feature.key, event.target.value || null)

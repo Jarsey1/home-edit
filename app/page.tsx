@@ -25,6 +25,7 @@ type Overlay =
         | "budget-property"
         | "evaluate";
       homeId: string;
+      featureKey?: string;
     }
   | { type: "add-home" }
   | { type: "budget" };
@@ -117,6 +118,7 @@ export default function HomeApp() {
                   key={overlay.homeId}
                   home={overlayHome}
                   onBack={goBack}
+                  focusFeatureKey={overlay.featureKey ?? null}
                 />
               )}
 
@@ -169,8 +171,8 @@ export default function HomeApp() {
               }
               onOpenWishlist={() => changeTab("wishlist")}
               onEvaluate={openPropertyEvaluation}
-              onEditProperty={(homeId) =>
-                setOverlays([{ type: "edit-home", homeId }])
+              onEditProperty={(homeId, featureKey) =>
+                setOverlays([{ type: "edit-home", homeId, featureKey }])
               }
               onOpenRequirement={openWishlistRequirement}
               onAddHome={() => setOverlays([{ type: "add-home" }])}
