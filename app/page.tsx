@@ -6,6 +6,7 @@ import { Dashboard } from "./components/dashboard";
 import { AddHomeScreen } from "./components/screens/add-home-screen";
 import { BudgetScreen } from "./components/screens/budget-screen";
 import { CompareScreen } from "./components/screens/compare-screen";
+import { EditPropertyScreen } from "./components/screens/edit-property-screen";
 import { MoreScreen } from "./components/screens/more-screen";
 import { NeighborhoodScreen } from "./components/screens/neighborhood-screen";
 import { PropertyScreen } from "./components/screens/property-screen";
@@ -14,7 +15,15 @@ import { WishlistScreen } from "./components/screens/wishlist-screen";
 import { useAppData } from "./lib/app-data";
 
 type Overlay =
-  | { type: "property" | "tour" | "neighborhood"; homeId: string }
+  | {
+      type:
+        | "property"
+        | "tour"
+        | "neighborhood"
+        | "edit-home"
+        | "budget-property";
+      homeId: string;
+    }
   | { type: "add-home" };
 
 type OverlayType = Exclude<Overlay["type"], "add-home">;
@@ -52,6 +61,7 @@ export default function HomeApp() {
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-cream sm:my-7 sm:min-h-[calc(100dvh-3.5rem)] sm:rounded-[40px] sm:border sm:border-line sm:shadow-[0_40px_90px_-35px_rgba(53,48,38,0.45)]">
+      <main className="flex flex-1 flex-col">
       {overlay ? (
         <>
           {overlay.type === "add-home" && (
@@ -68,6 +78,26 @@ export default function HomeApp() {
                   onOpenNeighborhood={() =>
                     pushOverlay("neighborhood", overlay.homeId)
                   }
+                  onOpenEdit={() => pushOverlay("edit-home", overlay.homeId)}
+                  onOpenBudget={() =>
+                    pushOverlay("budget-property", overlay.homeId)
+                  }
+                />
+              )}
+
+              {overlay.type === "edit-home" && (
+                <EditPropertyScreen
+                  key={overlay.homeId}
+                  home={overlayHome}
+                  onBack={goBack}
+                />
+              )}
+
+              {overlay.type === "budget-property" && (
+                <BudgetScreen
+                  key={overlay.homeId}
+                  property={overlayHome}
+                  onBack={goBack}
                 />
               )}
 
@@ -93,12 +123,13 @@ export default function HomeApp() {
           )}
         </>
       ) : (
-        <>
+        <div className="flex flex-1 flex-col pb-[calc(4.75rem+env(safe-area-inset-bottom))]">
           {tab === "home" && (
             <Dashboard
               onOpenProperty={openProperty}
               onBrowseHomes={() => changeTab("homes")}
               onAddHome={() => setOverlays([{ type: "add-home" }])}
+              onOpenWishlist={() => changeTab("wishlist")}
             />
           )}
 
@@ -125,14 +156,25 @@ export default function HomeApp() {
               onOpenHomes={() => changeTab("homes")}
               onOpenWishlist={() => changeTab("wishlist")}
               onOpenBudget={() => changeTab("budget")}
-              onOpenTour={() => pushOverlay("tour", topMatch.id)}
-              onOpenNeighborhood={() =>
-                pushOverlay("neighborhood", topMatch.id)
-              }
+              onOpenTour={() => {
+                if (homes.length === 0) {
+                  changeTab("homes");
+                  return;
+                }
+                pushOverlay("tour", topMatch.id);
+              }}
+              onOpenNeighborhood={() => {
+                if (homes.length === 0) {
+                  changeTab("homes");
+                  return;
+                }
+                pushOverlay("neighborhood", topMatch.id);
+              }}
             />
           )}
-        </>
+        </div>
       )}
+      </main>
 
       {!overlay && <BottomNav active={tab} onChange={changeTab} />}
     </div>

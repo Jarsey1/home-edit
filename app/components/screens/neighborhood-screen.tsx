@@ -448,13 +448,13 @@ function Safety() {
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-cream/10">
           <ShieldIcon className="h-[18px] w-[18px]" />
         </span>
-        <p className="mt-3 text-[10px] uppercase tracking-[0.16em] text-cream/55">
+        <p className="mt-3 text-[10px] uppercase tracking-[0.16em] text-cream/80">
           {t("neighborhood.riskSnapshot")}
         </p>
         <p className="mt-1.5 font-serif text-[22px] leading-tight">
           {t("neighborhood.lowFlood")}
         </p>
-        <p className="mt-2 text-[11px] leading-5 text-cream/65">
+        <p className="mt-2 text-[11px] leading-5 text-cream/80">
           {t("neighborhood.lowFloodBody")}
         </p>
       </div>

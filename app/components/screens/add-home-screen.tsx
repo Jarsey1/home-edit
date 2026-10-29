@@ -17,8 +17,10 @@ import {
   useI18n,
   type TranslationKey,
 } from "../../lib/i18n";
+import { normalizeListingUrl, validateHomeDraft } from "../../lib/validation";
 import { findState, US_STATES } from "../../lib/us-states";
 import { BackButton } from "../back-button";
+import { PhotoInput } from "../photo-input";
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -66,11 +68,6 @@ type LookupState = "idle" | "loading" | "found" | "empty" | "error";
 const fieldClass =
   "w-full rounded-2xl border border-line bg-white/60 px-4 py-3 text-[13px] text-ink outline-none transition-colors placeholder:text-muted/50 focus:border-olive/35 focus:ring-2 focus:ring-olive/15";
 
-function toNumber(value: string) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
-}
-
 export function AddHomeScreen({
   onBack,
   onAdded,
@@ -96,6 +93,26 @@ export function AddHomeScreen({
   const [sqft, setSqft] = useState("");
   const [lot, setLot] = useState("");
   const [yearBuilt, setYearBuilt] = useState("");
+  const [garageCars, setGarageCars] = useState("");
+  const [hoa, setHoa] = useState("");
+  const [pool, setPool] = useState<"unknown" | "yes" | "no">("unknown");
+  const [gated, setGated] = useState<"unknown" | "yes" | "no">("unknown");
+  const [listingUrl, setListingUrl] = useState("");
+  const [notes, setNotes] = useState("");
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [confirmSuspicious, setConfirmSuspicious] = useState(false);
+
+  const draftValidation = validateHomeDraft({
+    price,
+    beds,
+    baths,
+    sqft,
+    hoa,
+    garageCars,
+    yearBuilt,
+    lotAcres: "",
+    listingUrl,
+  });
 
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -107,6 +124,7 @@ export function AddHomeScreen({
   const [saving, setSaving] = useState(false);
 
   const lookupController = useRef<AbortController | null>(null);
+  const skipSuspiciousCheck = useRef(false);
   const autoFilled = useRef({ beds: "", baths: "", sqft: "" });
   const [lookupState, setLookupState] = useState<LookupState>("idle");
   const [lookupDetails, setLookupDetails] = useState<PropertyDetails | null>(
@@ -445,17 +463,54 @@ export function AddHomeScreen({
       return;
     }
 
+    if (!draftValidation.valid) {
+      setError(
+        draftValidation.errors.price ? "add.invalidPrice" : "add.invalidNumber",
+      );
+      return;
+    }
+
+    if (
+      draftValidation.suspiciousPrice &&
+      !confirmSuspicious &&
+      !skipSuspiciousCheck.current
+    ) {
+      setConfirmSuspicious(true);
+      return;
+    }
+
     setSaving(true);
+    const values = draftValidation.values;
     const home = addHome({
       address,
       city: city.trim(),
-      price: toNumber(price),
-      beds: toNumber(beds),
-      baths: toNumber(baths),
-      sqft: toNumber(sqft),
-      lot,
-      yearBuilt: toNumber(yearBuilt),
+      price: values.price ?? 0,
+      beds: values.beds ?? 0,
+      baths: values.baths ?? 0,
+      sqft: values.sqft ?? 0,
+      lot:
+        values.lotAcres !== null
+          ? formatLotSize(values.lotAcres * 43_560)
+          : lot,
+      garage:
+        values.garageCars !== null
+          ? `${values.garageCars} ${values.garageCars === 1 ? "car" : "cars"}`
+          : "",
+      hoa: values.hoa,
+      pool: pool === "yes" ? true : pool === "no" ? false : null,
+      gated: gated === "yes" ? true : gated === "no" ? false : null,
+      yearBuilt: values.yearBuilt ?? 0,
       type: lookupDetails?.propertyType,
+      listingUrl: normalizeListingUrl(values.listingUrl),
+      notes: notes.trim(),
+      photo,
+      facts: {
+        pool: pool === "yes" ? true : pool === "no" ? false : null,
+        gated: gated === "yes" ? true : gated === "no" ? false : null,
+        garageCars: values.garageCars,
+        hoa: values.hoa,
+        lotAcres: values.lotAcres,
+      },
     });
 
     if (!home) {
@@ -484,14 +539,14 @@ export function AddHomeScreen({
       <div className="px-6 pb-10 pt-5">
         <p className="text-[12px] leading-5 text-muted">{t("add.intro")}</p>
 
-        <form onSubmit={submit} className="mt-5">
+        <form id="add-home-form" onSubmit={submit} className="mt-5">
           <div>
             <label
               htmlFor={stateId}
               className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted"
             >
               {t("add.state")}{" "}
-              <span className="normal-case text-muted/70">
+              <span className="normal-case text-muted">
                 {t("add.optional")}
               </span>
             </label>
@@ -510,7 +565,7 @@ export function AddHomeScreen({
                   </option>
                 ))}
               </select>
-              <ChevronDownIcon className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
+              <ChevronDownIcon className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
             </div>
 
             <p className="mt-2 text-[10px] leading-4 text-muted">
@@ -529,7 +584,7 @@ export function AddHomeScreen({
 
           <div className="relative mt-2">
             <div className="relative">
-              <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-muted/60" />
+              <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-muted" />
               <input
                 ref={inputRef}
                 id={addressId}
@@ -687,7 +742,7 @@ export function AddHomeScreen({
               className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted"
             >
               {t("add.city")}{" "}
-              <span className="normal-case text-muted/70">
+              <span className="normal-case text-muted">
                 {t("add.optional")}
               </span>
             </label>
@@ -704,7 +759,7 @@ export function AddHomeScreen({
           <fieldset className="mt-6">
             <legend className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted">
               {t("add.details")}{" "}
-              <span className="normal-case text-muted/70">
+              <span className="normal-case text-muted">
                 {t("add.optional")}
               </span>
             </legend>
@@ -872,8 +927,165 @@ export function AddHomeScreen({
                   className={`${fieldClass} mt-1.5`}
                 />
               </label>
+
+              <label className="block">
+                <span className="text-[10px] text-muted">{t("add.garage")}</span>
+                <input
+                  value={garageCars}
+                  onChange={(event) => setGarageCars(event.target.value)}
+                  type="number"
+                  min={0}
+                  step={1}
+                  inputMode="numeric"
+                  placeholder={t("add.garagePlaceholder")}
+                  aria-label={t("add.garage")}
+                  className={`${fieldClass} mt-1.5`}
+                />
+                {draftValidation.errors.garageCars && (
+                  <span className="mt-1 block text-[10px] text-gold">
+                    {t("add.invalidNumber")}
+                  </span>
+                )}
+              </label>
+
+              <label className="block">
+                <span className="text-[10px] text-muted">{t("add.hoa")}</span>
+                <input
+                  value={hoa}
+                  onChange={(event) => setHoa(event.target.value)}
+                  type="number"
+                  min={0}
+                  step={10}
+                  inputMode="numeric"
+                  placeholder="350"
+                  aria-label={t("add.hoa")}
+                  className={`${fieldClass} mt-1.5`}
+                />
+                {draftValidation.errors.hoa && (
+                  <span className="mt-1 block text-[10px] text-gold">
+                    {t("add.invalidNumber")}
+                  </span>
+                )}
+              </label>
+
+              <label className="block">
+                <span className="text-[10px] text-muted">{t("add.pool")}</span>
+                <select
+                  value={pool}
+                  onChange={(event) =>
+                    setPool(event.target.value as "unknown" | "yes" | "no")
+                  }
+                  className={`${fieldClass} mt-1.5 appearance-none`}
+                  aria-label={t("add.pool")}
+                >
+                  <option value="unknown">{t("common.notSure")}</option>
+                  <option value="yes">{t("common.yes")}</option>
+                  <option value="no">{t("common.no")}</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-[10px] text-muted">{t("add.gated")}</span>
+                <select
+                  value={gated}
+                  onChange={(event) =>
+                    setGated(event.target.value as "unknown" | "yes" | "no")
+                  }
+                  className={`${fieldClass} mt-1.5 appearance-none`}
+                  aria-label={t("add.gated")}
+                >
+                  <option value="unknown">{t("common.notSure")}</option>
+                  <option value="yes">{t("common.yes")}</option>
+                  <option value="no">{t("common.no")}</option>
+                </select>
+              </label>
             </div>
+
+            <div className="mt-3">
+              <label className="block">
+                <span className="text-[10px] text-muted">
+                  {t("add.listingUrl")}{" "}
+                  <span className="text-muted">{t("add.optional")}</span>
+                </span>
+                <input
+                  value={listingUrl}
+                  onChange={(event) => setListingUrl(event.target.value)}
+                  inputMode="url"
+                  placeholder="https://"
+                  className={`${fieldClass} mt-1.5`}
+                />
+                {draftValidation.errors.listingUrl && (
+                  <span className="mt-1 block text-[10px] text-gold">
+                    {t("edit.invalidUrl")}
+                  </span>
+                )}
+              </label>
+            </div>
+
+            <div className="mt-4">
+              <PhotoInput value={photo} onChange={setPhoto} />
+            </div>
+
+            <div className="mt-3">
+              <label className="block">
+                <span className="text-[10px] text-muted">
+                  {t("add.notes")}{" "}
+                  <span className="text-muted">{t("add.optional")}</span>
+                </span>
+                <textarea
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  rows={2}
+                  className={`${fieldClass} mt-1.5 resize-none leading-5`}
+                />
+              </label>
+            </div>
+
+            <p className="mt-2 text-[9.5px] leading-4 text-muted">
+              {t("add.factsHint")}
+            </p>
           </fieldset>
+
+          {draftValidation.errors.price && (
+            <p className="mt-2 text-[10px] text-gold">{t("add.invalidPrice")}</p>
+          )}
+
+          {confirmSuspicious && (
+            <div
+              role="alertdialog"
+              className="mt-5 rounded-2xl border border-gold/35 bg-gold/10 px-4 py-3.5"
+            >
+              <p className="text-[12px] font-medium text-ink">
+                {t("add.suspiciousTitle")}
+              </p>
+              <p className="mt-1 text-[10.5px] leading-4 text-muted">
+                {t("add.suspiciousBody")}
+              </p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmSuspicious(false)}
+                  className="min-h-10 flex-1 rounded-full border border-line bg-white/70 text-[11px] font-medium text-ink"
+                >
+                  {t("common.cancel")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    skipSuspiciousCheck.current = true;
+                    setConfirmSuspicious(false);
+                    const form = document.getElementById(
+                      "add-home-form",
+                    ) as HTMLFormElement | null;
+                    form?.requestSubmit();
+                  }}
+                  className="min-h-10 flex-1 rounded-full bg-olive text-[11px] font-medium text-cream"
+                >
+                  {t("edit.saveAnyway")}
+                </button>
+              </div>
+            </div>
+          )}
 
           {error && (
             <p

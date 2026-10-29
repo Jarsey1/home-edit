@@ -1,4 +1,5 @@
 import type { Locale } from "./locale";
+import type { PropertyFacts, TourStatus } from "./v2-types";
 
 export type Home = {
   id: string;
@@ -22,6 +23,14 @@ export type Home = {
   features: string[];
   saved: boolean;
   tourRequested: boolean;
+  /** V2 details, merged from the separate property_details record. */
+  photo?: string | null;
+  listingUrl?: string;
+  notes?: string;
+  favorite?: boolean;
+  facts?: PropertyFacts;
+  tourDate?: string | null;
+  tourStatus?: TourStatus;
 };
 
 export const HOMES: Home[] = [
@@ -144,6 +153,12 @@ export function formatLotLabel(value: string, locale: Locale = "en") {
   return value
     .replace(/\bsq ft\b/gi, "pies²")
     .replace(/\bac\b/gi, "acres");
+}
+
+/** Garage capacity is stored in English; translate the unit for display. */
+export function formatGarageLabel(value: string, locale: Locale = "en") {
+  if (!value || locale !== "es") return value;
+  return value.replace(/\bcar\b/gi, "auto").replace(/\bcars\b/gi, "autos");
 }
 
 export function formatPriceShort(value: number, locale: Locale = "en") {

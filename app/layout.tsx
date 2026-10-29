@@ -53,9 +53,12 @@ export default async function RootLayout({
   return (
     <html
       lang={locale}
+      // Extensions such as Grammarly inject attributes/children before React
+      // hydrates. Suppress the noisy warning; the app's own markup is stable.
+      suppressHydrationWarning
       className={`${geistSans.variable} ${playfair.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col">
+      <body suppressHydrationWarning className="flex min-h-full flex-col">
         <LanguageProvider initialLocale={locale}>
           <AppDataProvider>{children}</AppDataProvider>
         </LanguageProvider>

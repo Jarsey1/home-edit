@@ -118,7 +118,7 @@ export function TourNotesScreen({
               </option>
             ))}
           </select>
-          <ChevronDownIcon className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/70" />
+          <ChevronDownIcon className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
         </div>
 
         {pendingHome && (
@@ -238,7 +238,7 @@ export function TourNotesScreen({
             rows={5}
             aria-label={t("tour.notesAria")}
             placeholder={t("tour.notesPlaceholder")}
-            className="mt-3 w-full resize-none rounded-[20px] border border-line bg-white/60 px-4 py-3.5 text-[12.5px] leading-6 text-ink outline-none transition-colors placeholder:text-muted/60 focus:border-olive/35 focus:ring-2 focus:ring-olive/15"
+            className="mt-3 w-full resize-none rounded-[20px] border border-line bg-white/60 px-4 py-3.5 text-[12.5px] leading-6 text-ink outline-none transition-colors placeholder:text-muted focus:border-olive/35 focus:ring-2 focus:ring-olive/15"
           />
         </section>
 
@@ -357,7 +357,7 @@ function ListEditor({
                 onChange(items.filter((_, itemIndex) => itemIndex !== index))
               }
               aria-label={t("tour.removeItem", { item })}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted/60 transition-colors hover:bg-parchment hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-parchment hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
             >
               <TrashIcon className="h-3.5 w-3.5" />
             </button>
@@ -378,7 +378,7 @@ function ListEditor({
               onChange={(event) => setDraft(event.target.value)}
               placeholder={placeholder}
               aria-label={placeholder}
-              className="min-w-0 flex-1 bg-transparent text-[12px] text-ink outline-none placeholder:text-muted/70"
+              className="min-w-0 flex-1 bg-transparent text-[12px] text-ink outline-none placeholder:text-muted"
             />
             <button
               type="submit"

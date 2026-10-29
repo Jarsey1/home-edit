@@ -2,7 +2,7 @@
 
 import type { ComponentType, SVGProps } from "react";
 import { useAppData } from "../../lib/app-data";
-import { useI18n } from "../../lib/i18n";
+import { translateWishlistName, useI18n } from "../../lib/i18n";
 import {
   BudgetIcon,
   CalendarIcon,
@@ -36,8 +36,17 @@ export function MoreScreen({
   onOpenTour: () => void;
   onOpenNeighborhood: () => void;
 }) {
-  const { savedCount, upcomingTours, topMatch, status } = useAppData();
+  const {
+    savedCount,
+    upcomingTours,
+    topMatches,
+    status,
+    v2Synced,
+    activeWishlist,
+    wishlistProgress,
+  } = useAppData();
   const { t, locale, setLocale } = useI18n();
+  const topScored = topMatches[0];
 
   const searchRows: Row[] = [
     {
@@ -72,6 +81,12 @@ export function MoreScreen({
       detail: t("more.budgetDetail"),
       Icon: BudgetIcon,
       onClick: onOpenBudget,
+    },
+    {
+      label: t("more.scoring"),
+      detail: t("more.scoringDetail"),
+      Icon: SparkleIcon,
+      onClick: onOpenWishlist,
     },
   ];
 
@@ -160,10 +175,10 @@ export function MoreScreen({
 
         <div className="mt-4 rounded-[24px] bg-olive p-5 text-cream">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-cream/55">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-cream/80">
               {t("more.summary")}
             </p>
-            <span className="rounded-full bg-cream/10 px-2 py-0.5 text-[9px] uppercase tracking-[0.12em] text-cream/70">
+            <span className="rounded-full bg-cream/10 px-2 py-0.5 text-[9px] uppercase tracking-[0.12em] text-cream/80">
               {t("more.active")}
             </span>
           </div>
@@ -173,10 +188,11 @@ export function MoreScreen({
               { value: String(savedCount), label: t("more.savedHomes") },
               { value: String(upcomingTours), label: t("more.tours") },
               {
-                value:
-                  topMatch.match > 0
-                    ? t("compare.matchBadge", { percent: topMatch.match })
-                    : t("common.new"),
+                value: topScored
+                  ? t("compare.matchBadge", {
+                      percent: topScored.score.scoreRounded ?? 0,
+                    })
+                  : "—",
                 label: t("more.topMatch"),
               },
             ].map((stat) => (
@@ -184,14 +200,25 @@ export function MoreScreen({
                 <p className="font-serif text-[24px] leading-none">
                   {stat.value}
                 </p>
-                <p className="mt-1.5 text-[9px] uppercase tracking-[0.08em] text-cream/55">
+                <p className="mt-1.5 text-[9px] uppercase tracking-[0.08em] text-cream/80">
                   {stat.label}
                 </p>
               </div>
             ))}
           </div>
 
-          <p className="mt-4 flex items-center gap-1.5 border-t border-cream/10 pt-3 text-[9px] uppercase tracking-[0.12em] text-cream/45">
+          <p className="mt-4 border-t border-cream/10 pt-3 text-[10px] text-cream/80">
+            {t("dashboard.activeWishlist")}:{" "}
+            <span className="font-medium text-cream">
+              {activeWishlist ? translateWishlistName(activeWishlist.name, locale) : "—"}
+            </span>{" "}
+            <span className="text-cream/80">
+              · {wishlistProgress.configured}/{wishlistProgress.total}{" "}
+              {t("dashboard.wishlistPreferences")}
+            </span>
+          </p>
+
+          <p className="mt-3 flex items-center gap-1.5 text-[9px] uppercase tracking-[0.12em] text-cream/80">
             <span
               aria-hidden="true"
               className={[
@@ -204,7 +231,9 @@ export function MoreScreen({
               ].join(" ")}
             />
             {status === "synced"
-              ? t("more.synced")
+              ? v2Synced
+                ? t("more.synced")
+                : t("more.v2Local")
               : status === "local"
                 ? t("more.local")
                 : t("more.connecting")}
@@ -238,7 +267,7 @@ function RowGroup({ title, rows }: { title: string; rows: Row[] }) {
               <span
                 className={[
                   "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
-                  onClick ? "bg-parchment text-olive" : "bg-sand/60 text-muted/70",
+                  onClick ? "bg-parchment text-olive" : "bg-sand/60 text-muted",
                 ].join(" ")}
               >
                 <Icon className="h-[17px] w-[17px]" />
@@ -258,7 +287,7 @@ function RowGroup({ title, rows }: { title: string; rows: Row[] }) {
                   {badge}
                 </span>
               ) : (
-                <ChevronRightIcon className="h-4 w-4 shrink-0 text-muted/60" />
+                <ChevronRightIcon className="h-4 w-4 shrink-0 text-muted" />
               )}
             </>
           );

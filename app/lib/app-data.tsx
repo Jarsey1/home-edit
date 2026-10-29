@@ -17,7 +17,10 @@ import {
   DEFAULT_TOUR_NOTES,
   DEFAULT_WISHLIST,
 } from "./defaults";
+import { calculateBudget, inputsForProperty } from "./finance";
 import type { Home } from "./homes";
+import { factsFromHome } from "./property-facts";
+import { scoreRequirements, type ScoreResult } from "./scoring";
 import { hasSupabaseConfig, supabase } from "./supabase";
 import type {
   BudgetSettings,
@@ -26,16 +29,56 @@ import type {
   WishlistItem,
   WishlistKind,
 } from "./types";
+import {
+  DEFAULT_BUDGET_INPUTS,
+  DEFAULT_OWNER_ID,
+  type BudgetInputs,
+  type BudgetScenario,
+  type PropertyDetails,
+  type PropertyFacts,
+  type RequirementValue,
+  type TourStatus,
+  type UserProfile,
+  type Wishlist,
+  type WishlistCategory,
+  type WishlistRequirement,
+} from "./v2-types";
+import {
+  activeWishlist as pickActiveWishlist,
+  createRequirement,
+  createWishlist,
+  defaultRequirements,
+  duplicateWishlist,
+  nowIso,
+  requirementsFor,
+  requirementsFromLegacy,
+  wishlistSetupProgress,
+} from "./wishlists";
+import { newId } from "./wishlists";
 
 type Snapshot = {
   homes: Home[];
+  /** Legacy checklist retained for migration and data safety. */
   wishlist: WishlistItem[];
   tourNotes: Record<string, TourNote>;
   budget: BudgetSettings;
   comparisonNotes: ComparisonNote[];
+  // V2
+  profile: UserProfile;
+  wishlists: Wishlist[];
+  requirements: WishlistRequirement[];
+  details: Record<string, PropertyDetails>;
+  scenarios: BudgetScenario[];
 };
 
 type SyncStatus = "loading" | "synced" | "local";
+
+export type ScoredHome = {
+  home: Home;
+  facts: PropertyFacts;
+  score: ScoreResult;
+  monthlyCost: number | null;
+};
 
 export type NewHomeInput = {
   address: string;
@@ -45,14 +88,58 @@ export type NewHomeInput = {
   baths: number;
   sqft: number;
   lot?: string;
+  lotAcres?: number | null;
+  garage?: string;
+  garageCars?: number | null;
+  hoa?: number | null;
+  pool?: boolean | null;
+  gated?: boolean | null;
   yearBuilt?: number;
   type?: string;
+  description?: string;
+  features?: string[];
+  listingUrl?: string;
+  photo?: string | null;
+  notes?: string;
+  facts?: PropertyFacts;
+};
+
+export type HomeUpdate = Partial<
+  Pick<
+    Home,
+    | "address"
+    | "city"
+    | "price"
+    | "beds"
+    | "baths"
+    | "sqft"
+    | "lot"
+    | "garage"
+    | "pool"
+    | "gated"
+    | "hoa"
+    | "yearBuilt"
+    | "type"
+    | "description"
+    | "features"
+    | "saved"
+    | "tourRequested"
+  >
+> & {
+  listingUrl?: string;
+  photo?: string | null;
+  notes?: string;
+  favorite?: boolean;
+  facts?: PropertyFacts;
+  tourDate?: string | null;
+  tourStatus?: TourStatus;
 };
 
 type AppData = Snapshot & {
   ready: boolean;
   status: SyncStatus;
   configured: boolean;
+  v2Synced: boolean;
   topMatch: Home;
   savedCount: number;
   upcomingTours: number;
@@ -61,25 +148,68 @@ type AppData = Snapshot & {
   wishlistTotal: number;
   mustDone: number;
   mustTotal: number;
+  activeWishlist: Wishlist | null;
+  activeRequirements: WishlistRequirement[];
+  wishlistProgress: { configured: number; total: number; percent: number };
+  scoredHomes: ScoredHome[];
+  topMatches: ScoredHome[];
+  homesNeedingEvaluation: ScoredHome[];
+  defaultScenario: BudgetScenario;
+  activeScenario: BudgetScenario;
+  getScoreForHome: (homeId: string) => ScoreResult | null;
+  getMonthlyCostForHome: (homeId: string) => number | null;
+  getBudgetScenarioForProperty: (homeId: string) => BudgetScenario | null;
   addHome: (input: NewHomeInput) => Home | null;
+  updateHome: (homeId: string, patch: HomeUpdate) => void;
   removeHome: (homeId: string) => void;
   toggleSaved: (homeId: string) => void;
   setTourRequested: (homeId: string, value?: boolean) => void;
+  toggleFavorite: (homeId: string) => void;
   toggleWishlistItem: (itemId: string) => void;
   addWishlistItem: (
     kind: WishlistKind,
     label: string,
     category?: string | null,
   ) => void;
+  createWishlist: (
+    name: string,
+    budget?: number | null,
+    makeActive?: boolean,
+  ) => Wishlist | null;
+  renameWishlist: (wishlistId: string, name: string) => void;
+  duplicateWishlist: (wishlistId: string, name?: string) => Wishlist | null;
+  deleteWishlist: (wishlistId: string) => boolean;
+  setActiveWishlist: (wishlistId: string) => void;
+  updateWishlistBudget: (wishlistId: string, budget: number | null) => void;
+  addRequirement: (input: {
+    wishlistId: string;
+    name: string;
+    category: WishlistCategory;
+    featureKey: string;
+    type: WishlistRequirement["type"];
+    expectedValue: RequirementValue;
+    importance: WishlistRequirement["importance"];
+    weight?: number | null;
+    configured?: boolean;
+    custom?: boolean;
+  }) => WishlistRequirement;
+  updateRequirement: (
+    requirementId: string,
+    patch: Partial<WishlistRequirement>,
+  ) => void;
+  removeRequirement: (requirementId: string) => void;
   saveTourNote: (
     homeId: string,
     patch: Pick<TourNote, "rating" | "notes" | "pros" | "cons">,
   ) => void;
   updateBudget: (patch: Partial<BudgetSettings>) => void;
   addComparisonNote: (body: string) => void;
+  saveScenarioInputs: (inputs: BudgetInputs, propertyId?: string | null) => BudgetScenario;
+  updateScenarioInputs: (scenarioId: string, inputs: BudgetInputs) => void;
 };
 
-const STORAGE_KEY = "next-home-edit:data:v2";
+const STORAGE_KEY = "next-home-edit:data:v3";
+const LEGACY_STORAGE_KEY = "next-home-edit:data:v2";
 
 const AppDataContext = createContext<AppData | null>(null);
 
@@ -87,54 +217,220 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function defaultSnapshot(): Snapshot {
+function downAmountFor(price: number, percent: number) {
+  return Math.round(((price * percent) / 100) * 100) / 100;
+}
+
+function seedV2(
+  legacyWishlist: WishlistItem[],
+  budget: BudgetSettings,
+): Pick<Snapshot, "profile" | "wishlists" | "requirements" | "details" | "scenarios"> {
+  const wishlist: Wishlist = {
+    id: "wishlist-default",
+    name: "Our Next Home",
+    isActive: true,
+    budget: null,
+    createdAt: "",
+    updatedAt: "",
+  };
+  const requirements =
+    legacyWishlist.length > 0
+      ? requirementsFromLegacy(wishlist.id, legacyWishlist)
+      : defaultRequirements(wishlist.id);
+
+  const scenario: BudgetScenario = {
+    id: "scenario-default",
+    name: "Baseline plan",
+    wishlistId: wishlist.id,
+    propertyId: null,
+    inputs: {
+      ...DEFAULT_BUDGET_INPUTS,
+      price: budget.price > 0 ? budget.price : DEFAULT_BUDGET_INPUTS.price,
+      downPercent: budget.downPercent,
+      downAmount: downAmountFor(budget.price, budget.downPercent),
+      rate: budget.rate,
+      termYears: budget.term,
+    },
+    updatedAt: "",
+  };
+
   return {
+    profile: {
+      id: DEFAULT_OWNER_ID,
+      name: "My household",
+      preferredLanguage: "en",
+      createdAt: "",
+    },
+    wishlists: [wishlist],
+    requirements,
+    details: {},
+    scenarios: [scenario],
+  };
+}
+
+function defaultSnapshot(): Snapshot {
+  const legacy: Omit<Snapshot, "profile" | "wishlists" | "requirements" | "details" | "scenarios"> = {
     homes: clone(DEFAULT_HOMES),
     wishlist: clone(DEFAULT_WISHLIST),
     tourNotes: clone(DEFAULT_TOUR_NOTES),
     budget: { ...DEFAULT_BUDGET },
     comparisonNotes: clone(DEFAULT_COMPARISON_NOTES),
   };
+  return {
+    ...legacy,
+    ...seedV2(legacy.wishlist, legacy.budget),
+  };
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeWishlist(value: unknown): Wishlist | null {
+  if (!isObject(value) || typeof value.id !== "string") return null;
+  return {
+    id: value.id,
+    name: typeof value.name === "string" && value.name.trim() ? value.name : "Our Next Home",
+    isActive: Boolean(value.isActive),
+    budget:
+      typeof value.budget === "number" && Number.isFinite(value.budget)
+        ? value.budget
+        : null,
+    createdAt: typeof value.createdAt === "string" ? value.createdAt : "",
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : "",
+  };
+}
+
+function normalizeRequirement(value: unknown): WishlistRequirement | null {
+  if (!isObject(value) || typeof value.id !== "string") return null;
+  if (typeof value.wishlistId !== "string" || typeof value.name !== "string") {
+    return null;
+  }
+  return {
+    id: value.id,
+    wishlistId: value.wishlistId,
+    category: value.category as WishlistCategory,
+    name: value.name,
+    featureKey: typeof value.featureKey === "string" ? value.featureKey : "custom",
+    type: value.type as WishlistRequirement["type"],
+    expectedValue: (value.expectedValue ?? null) as RequirementValue,
+    importance: value.importance as WishlistRequirement["importance"],
+    weight:
+      typeof value.weight === "number" && Number.isFinite(value.weight)
+        ? value.weight
+        : null,
+    configured: value.configured !== false,
+    position: typeof value.position === "number" ? value.position : 0,
+    createdAt: typeof value.createdAt === "string" ? value.createdAt : "",
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : "",
+    custom: Boolean(value.custom),
+  };
+}
+
+function normalizeDetails(value: unknown): PropertyDetails | null {
+  if (!isObject(value) || typeof value.homeId !== "string") return null;
+  return {
+    homeId: value.homeId,
+    photo: typeof value.photo === "string" && value.photo ? value.photo : null,
+    listingUrl: typeof value.listingUrl === "string" ? value.listingUrl : "",
+    notes: typeof value.notes === "string" ? value.notes : "",
+    favorite: Boolean(value.favorite),
+    facts: isObject(value.facts) ? (value.facts as PropertyFacts) : {},
+    tourDate: typeof value.tourDate === "string" ? value.tourDate : null,
+    tourStatus: (typeof value.tourStatus === "string"
+      ? value.tourStatus
+      : "none") as TourStatus,
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : "",
+  };
+}
+
+function normalizeScenario(value: unknown): BudgetScenario | null {
+  if (!isObject(value) || typeof value.id !== "string") return null;
+  return {
+    id: value.id,
+    name: typeof value.name === "string" ? value.name : "",
+    wishlistId: typeof value.wishlistId === "string" ? value.wishlistId : null,
+    propertyId: typeof value.propertyId === "string" ? value.propertyId : null,
+    inputs: { ...DEFAULT_BUDGET_INPUTS, ...(isObject(value.inputs) ? value.inputs : {}) } as BudgetInputs,
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : "",
+  };
+}
+
+function localSnapshotFromParsed(parsed: Record<string, unknown>): Snapshot {
+  const base = defaultSnapshot();
+  const legacyWishlist =
+    Array.isArray(parsed.wishlist) && parsed.wishlist.length > 0
+      ? (parsed.wishlist as WishlistItem[])
+      : base.wishlist;
+  const budget = isObject(parsed.budget)
+    ? { ...base.budget, ...(parsed.budget as Partial<BudgetSettings>) }
+    : base.budget;
+
+  const seeded = seedV2(legacyWishlist, budget);
+  const wishlistsRaw = Array.isArray(parsed.wishlists)
+    ? parsed.wishlists.map(normalizeWishlist).filter((entry): entry is Wishlist => Boolean(entry))
+    : [];
+  const requirementRaw = Array.isArray(parsed.requirements)
+    ? parsed.requirements
+        .map(normalizeRequirement)
+        .filter((entry): entry is WishlistRequirement => Boolean(entry))
+    : [];
+  const detailsEntry = isObject(parsed.details)
+    ? Object.values(parsed.details)
+        .map(normalizeDetails)
+        .filter((entry): entry is PropertyDetails => Boolean(entry))
+    : [];
+  const scenariosRaw = Array.isArray(parsed.scenarios)
+    ? parsed.scenarios
+        .map(normalizeScenario)
+        .filter((entry): entry is BudgetScenario => Boolean(entry))
+    : [];
+
+  const wishlists = wishlistsRaw.length > 0 ? wishlistsRaw : seeded.wishlists;
+  const activeId = wishlists.find((wishlist) => wishlist.isActive)?.id ?? wishlists[0]?.id;
+  const normalizedWishlists = wishlists.map((wishlist) => ({
+    ...wishlist,
+    isActive: wishlist.id === activeId,
+  }));
+
+  return {
+    homes: Array.isArray(parsed.homes) ? (parsed.homes as Home[]) : base.homes,
+    wishlist: legacyWishlist,
+    tourNotes: isObject(parsed.tourNotes)
+      ? (parsed.tourNotes as Record<string, TourNote>)
+      : base.tourNotes,
+    budget,
+    comparisonNotes: Array.isArray(parsed.comparisonNotes)
+      ? (parsed.comparisonNotes as ComparisonNote[])
+      : [],
+    profile: isObject(parsed.profile)
+      ? {
+          ...seeded.profile,
+          ...(parsed.profile as Partial<UserProfile>),
+        }
+      : seeded.profile,
+    wishlists: normalizedWishlists,
+    requirements: Array.isArray(parsed.requirements)
+      ? requirementRaw
+      : requirementsFromLegacy(normalizedWishlists[0].id, legacyWishlist),
+    details: Object.fromEntries(detailsEntry.map((entry) => [entry.homeId, entry])),
+    scenarios: scenariosRaw.length > 0 ? scenariosRaw : seeded.scenarios,
+  };
 }
 
 function readStored(): Snapshot | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw =
+      window.localStorage.getItem(STORAGE_KEY) ??
+      window.localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<Snapshot> | null;
-    if (!parsed || typeof parsed !== "object") return null;
-    const base = defaultSnapshot();
-    return {
-      homes:
-        Array.isArray(parsed.homes) && parsed.homes.length > 0
-          ? parsed.homes
-          : base.homes,
-      wishlist:
-        Array.isArray(parsed.wishlist) && parsed.wishlist.length > 0
-          ? parsed.wishlist
-          : base.wishlist,
-      tourNotes:
-        parsed.tourNotes && typeof parsed.tourNotes === "object"
-          ? parsed.tourNotes
-          : base.tourNotes,
-      budget: parsed.budget
-        ? { ...base.budget, ...parsed.budget }
-        : base.budget,
-      comparisonNotes: Array.isArray(parsed.comparisonNotes)
-        ? parsed.comparisonNotes
-        : [],
-    };
+    const parsed = JSON.parse(raw) as unknown;
+    if (!isObject(parsed)) return null;
+    return localSnapshotFromParsed(parsed);
   } catch {
     return null;
   }
-}
-
-function newId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -196,6 +492,57 @@ type ComparisonRow = {
   id: string;
   body: string;
   created_at: string;
+};
+
+type WishlistV2Row = {
+  id: string;
+  owner_id: string;
+  name: string;
+  is_active: boolean;
+  budget: number | string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type RequirementV2Row = {
+  id: string;
+  wishlist_id: string;
+  owner_id: string;
+  category: string;
+  name: string;
+  feature_key: string;
+  requirement_type: string;
+  expected_value: unknown;
+  importance: string;
+  weight: number | string | null;
+  configured: boolean;
+  position: number | string;
+  custom: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type DetailsRow = {
+  home_id: string;
+  owner_id: string;
+  photo: string | null;
+  listing_url: string;
+  notes: string;
+  favorite: boolean;
+  facts: unknown;
+  tour_date: string | null;
+  tour_status: string;
+  updated_at: string | null;
+};
+
+type ScenarioRow = {
+  id: string;
+  owner_id: string;
+  wishlist_id: string | null;
+  property_id: string | null;
+  name: string;
+  inputs: unknown;
+  updated_at: string | null;
 };
 
 function mapHomeRow(row: HomeRow): Home {
@@ -319,6 +666,149 @@ function mapComparisonRow(row: ComparisonRow): ComparisonNote {
   return { id: row.id, body: row.body, createdAt: row.created_at };
 }
 
+function mapWishlistV2Row(row: WishlistV2Row): Wishlist {
+  return {
+    id: row.id,
+    name: row.name,
+    isActive: row.is_active,
+    budget:
+      row.budget === null || row.budget === undefined ? null : Number(row.budget),
+    createdAt: row.created_at ?? "",
+    updatedAt: row.updated_at ?? "",
+  };
+}
+
+function toWishlistV2Row(wishlist: Wishlist, ownerId: string) {
+  return {
+    id: wishlist.id,
+    owner_id: ownerId,
+    name: wishlist.name,
+    is_active: wishlist.isActive,
+    budget: wishlist.budget,
+    created_at: wishlist.createdAt || new Date().toISOString(),
+    updated_at: wishlist.updatedAt || new Date().toISOString(),
+  };
+}
+
+function mapRequirementV2Row(row: RequirementV2Row): WishlistRequirement {
+  return {
+    id: row.id,
+    wishlistId: row.wishlist_id,
+    category: row.category as WishlistCategory,
+    name: row.name,
+    featureKey: row.feature_key,
+    type: row.requirement_type as WishlistRequirement["type"],
+    expectedValue: (row.expected_value ?? null) as RequirementValue,
+    importance: row.importance as WishlistRequirement["importance"],
+    weight: row.weight === null || row.weight === undefined ? null : Number(row.weight),
+    configured: row.configured,
+    position: Number(row.position),
+    createdAt: row.created_at ?? "",
+    updatedAt: row.updated_at ?? "",
+    custom: row.custom,
+  };
+}
+
+function toRequirementV2Row(requirement: WishlistRequirement, ownerId: string) {
+  return {
+    id: requirement.id,
+    wishlist_id: requirement.wishlistId,
+    owner_id: ownerId,
+    category: requirement.category,
+    name: requirement.name,
+    feature_key: requirement.featureKey,
+    requirement_type: requirement.type,
+    expected_value: requirement.expectedValue,
+    importance: requirement.importance,
+    weight: requirement.weight,
+    configured: requirement.configured,
+    position: requirement.position,
+    custom: Boolean(requirement.custom),
+    created_at: requirement.createdAt || new Date().toISOString(),
+    updated_at: requirement.updatedAt || new Date().toISOString(),
+  };
+}
+
+function mapDetailsRow(row: DetailsRow): PropertyDetails {
+  return {
+    homeId: row.home_id,
+    photo: row.photo || null,
+    listingUrl: row.listing_url ?? "",
+    notes: row.notes ?? "",
+    favorite: Boolean(row.favorite),
+    facts: isObject(row.facts) ? (row.facts as PropertyFacts) : {},
+    tourDate: row.tour_date ?? null,
+    tourStatus: (row.tour_status ?? "none") as TourStatus,
+    updatedAt: row.updated_at ?? "",
+  };
+}
+
+function toDetailsRow(details: PropertyDetails, ownerId: string) {
+  return {
+    home_id: details.homeId,
+    owner_id: ownerId,
+    photo: details.photo,
+    listing_url: details.listingUrl,
+    notes: details.notes,
+    favorite: details.favorite,
+    facts: details.facts,
+    tour_date: details.tourDate || null,
+    tour_status: details.tourStatus,
+    updated_at: details.updatedAt || new Date().toISOString(),
+  };
+}
+
+function mapScenarioRow(row: ScenarioRow): BudgetScenario {
+  return {
+    id: row.id,
+    name: row.name,
+    wishlistId: row.wishlist_id,
+    propertyId: row.property_id,
+    inputs: {
+      ...DEFAULT_BUDGET_INPUTS,
+      ...(isObject(row.inputs) ? row.inputs : {}),
+    } as BudgetInputs,
+    updatedAt: row.updated_at ?? "",
+  };
+}
+
+function toScenarioRow(scenario: BudgetScenario, ownerId: string) {
+  return {
+    id: scenario.id,
+    owner_id: ownerId,
+    wishlist_id: scenario.wishlistId,
+    property_id: scenario.propertyId,
+    name: scenario.name,
+    inputs: scenario.inputs,
+    updated_at: scenario.updatedAt || new Date().toISOString(),
+  };
+}
+
+function mergeDetails(home: Home, details: PropertyDetails | undefined): Home {
+  if (!details) {
+    return {
+      ...home,
+      photo: home.photo ?? null,
+      listingUrl: home.listingUrl ?? "",
+      notes: home.notes ?? "",
+      favorite: home.favorite ?? false,
+      facts: home.facts ?? {},
+      tourDate: home.tourDate ?? null,
+      tourStatus: home.tourStatus ?? "none",
+    };
+  }
+  return {
+    ...home,
+    photo: details.photo,
+    listingUrl: details.listingUrl,
+    notes: details.notes,
+    favorite: details.favorite,
+    facts: { ...(home.facts ?? {}), ...details.facts },
+    tourDate: details.tourDate,
+    tourStatus: details.tourStatus,
+  };
+}
+
 /* -------------------------------------------------------------------------- */
 /* Provider                                                                   */
 /* -------------------------------------------------------------------------- */
@@ -326,8 +816,10 @@ function mapComparisonRow(row: ComparisonRow): ComparisonNote {
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<Snapshot>(defaultSnapshot);
   const [status, setStatus] = useState<SyncStatus>("loading");
+  const [v2Synced, setV2Synced] = useState(false);
   const [ready, setReady] = useState(false);
   const budgetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ownerId = data.profile.id || DEFAULT_OWNER_ID;
 
   useEffect(() => {
     let cancelled = false;
@@ -344,20 +836,25 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const [homesResult, wishlistResult, notesResult, budgetResult, comparisonResult] =
-          await Promise.all([
-            client.from("homes").select("*").order("position", { ascending: true }),
-            client
-              .from("wishlist_items")
-              .select("*")
-              .order("position", { ascending: true }),
-            client.from("tour_notes").select("*"),
-            client.from("budget_settings").select("*").eq("id", 1).maybeSingle(),
-            client
-              .from("comparison_notes")
-              .select("*")
-              .order("created_at", { ascending: true }),
-          ]);
+        const [
+          homesResult,
+          wishlistResult,
+          notesResult,
+          budgetResult,
+          comparisonResult,
+        ] = await Promise.all([
+          client.from("homes").select("*").order("position", { ascending: true }),
+          client
+            .from("wishlist_items")
+            .select("*")
+            .order("position", { ascending: true }),
+          client.from("tour_notes").select("*"),
+          client.from("budget_settings").select("*").eq("id", 1).maybeSingle(),
+          client
+            .from("comparison_notes")
+            .select("*")
+            .order("created_at", { ascending: true }),
+        ]);
 
         const failed = [
           homesResult,
@@ -369,7 +866,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         if (failed?.error) throw failed.error;
         if (cancelled) return;
 
-        const next: Snapshot = {
+        const legacy: Snapshot = {
           homes: ((homesResult.data ?? []) as HomeRow[]).map(mapHomeRow),
           wishlist: ((wishlistResult.data ?? []) as WishlistRow[]).map(
             mapWishlistRow,
@@ -386,28 +883,34 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           comparisonNotes: ((comparisonResult.data ?? []) as ComparisonRow[]).map(
             mapComparisonRow,
           ),
+          ...seedV2(
+            ((wishlistResult.data ?? []) as WishlistRow[]).map(mapWishlistRow),
+            budgetResult.data
+              ? mapBudgetRow(budgetResult.data as BudgetRow)
+              : { ...DEFAULT_BUDGET },
+          ),
         };
 
         // First-run seed: keep the demo content when a table is still empty.
-        if (next.homes.length === 0) {
-          next.homes = clone(DEFAULT_HOMES);
+        if (legacy.homes.length === 0) {
+          legacy.homes = clone(DEFAULT_HOMES);
           await client
             .from("homes")
-            .upsert(next.homes.map(toHomeRow), { onConflict: "id" });
+            .upsert(legacy.homes.map(toHomeRow), { onConflict: "id" });
         }
 
-        if (next.wishlist.length === 0) {
-          next.wishlist = clone(DEFAULT_WISHLIST);
+        if (legacy.wishlist.length === 0) {
+          legacy.wishlist = clone(DEFAULT_WISHLIST);
           await client
             .from("wishlist_items")
-            .upsert(next.wishlist.map(toWishlistRow), { onConflict: "id" });
+            .upsert(legacy.wishlist.map(toWishlistRow), { onConflict: "id" });
         }
 
-        if (Object.keys(next.tourNotes).length === 0) {
-          next.tourNotes = clone(DEFAULT_TOUR_NOTES);
+        if (Object.keys(legacy.tourNotes).length === 0) {
+          legacy.tourNotes = clone(DEFAULT_TOUR_NOTES);
           await client
             .from("tour_notes")
-            .upsert(Object.values(next.tourNotes).map(toTourNoteRow), {
+            .upsert(Object.values(legacy.tourNotes).map(toTourNoteRow), {
               onConflict: "home_id",
             });
         }
@@ -415,10 +918,144 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         if (!budgetResult.data) {
           await client
             .from("budget_settings")
-            .upsert(toBudgetRow(next.budget), { onConflict: "id" });
+            .upsert(toBudgetRow(legacy.budget), { onConflict: "id" });
+        }
+
+        // V2 tables are additive. If the migration has not been run, the app
+        // keeps the V2 state on this device instead of failing the whole load.
+        let next = legacy;
+        let schemaReady = true;
+        try {
+          const [wishlistsResult, requirementsResult, detailsResult, scenariosResult] =
+            await Promise.all([
+              client
+                .from("wishlists")
+                .select("*")
+                .eq("owner_id", DEFAULT_OWNER_ID)
+                .order("created_at", { ascending: true }),
+              client
+                .from("wishlist_requirements")
+                .select("*")
+                .eq("owner_id", DEFAULT_OWNER_ID)
+                .order("position", { ascending: true }),
+              client
+                .from("property_details")
+                .select("*")
+                .eq("owner_id", DEFAULT_OWNER_ID),
+              client
+                .from("budget_scenarios")
+                .select("*")
+                .eq("owner_id", DEFAULT_OWNER_ID)
+                .order("updated_at", { ascending: true }),
+            ]);
+
+          const v2Error = [
+            wishlistsResult,
+            requirementsResult,
+            detailsResult,
+            scenariosResult,
+          ].find((result) => result.error);
+          if (v2Error?.error) throw v2Error.error;
+
+          const wishlists = ((wishlistsResult.data ?? []) as WishlistV2Row[]).map(
+            mapWishlistV2Row,
+          );
+          const requirements = (
+            (requirementsResult.data ?? []) as RequirementV2Row[]
+          ).map(mapRequirementV2Row);
+          const details = Object.fromEntries(
+            ((detailsResult.data ?? []) as DetailsRow[]).map((row) => [
+              row.home_id,
+              mapDetailsRow(row),
+            ]),
+          );
+          const scenarios = ((scenariosResult.data ?? []) as ScenarioRow[]).map(
+            mapScenarioRow,
+          );
+
+          if (wishlists.length === 0) {
+            const seeded = seedV2(legacy.wishlist, legacy.budget);
+            next = {
+              ...legacy,
+              ...seeded,
+            };
+            await client.from("profiles").upsert({
+              id: DEFAULT_OWNER_ID,
+              name: seeded.profile.name,
+              preferred_language: seeded.profile.preferredLanguage,
+            });
+            await client
+              .from("wishlists")
+              .upsert(
+                seeded.wishlists.map((wishlist) =>
+                  toWishlistV2Row(wishlist, DEFAULT_OWNER_ID),
+                ),
+                { onConflict: "id" },
+              );
+            await client
+              .from("wishlist_requirements")
+              .upsert(
+                seeded.requirements.map((requirement) =>
+                  toRequirementV2Row(requirement, DEFAULT_OWNER_ID),
+                ),
+                { onConflict: "id" },
+              );
+            await client
+              .from("budget_scenarios")
+              .upsert(
+                seeded.scenarios.map((scenario) =>
+                  toScenarioRow(scenario, DEFAULT_OWNER_ID),
+                ),
+                { onConflict: "id" },
+              );
+          } else {
+            const activeId =
+              wishlists.find((wishlist) => wishlist.isActive)?.id ??
+              wishlists[0]?.id;
+            next = {
+              ...legacy,
+              wishlists: wishlists.map((wishlist) => ({
+                ...wishlist,
+                isActive: wishlist.id === activeId,
+              })),
+              requirements,
+              details,
+              scenarios:
+                scenarios.length > 0
+                  ? scenarios
+                  : seedV2(legacy.wishlist, legacy.budget).scenarios,
+            };
+          }
+        } catch (error) {
+          schemaReady = false;
+          const stored = readStored();
+          if (stored) {
+            next = {
+              ...legacy,
+              profile: stored.profile,
+              wishlists: stored.wishlists,
+              requirements: stored.requirements,
+              details: stored.details,
+              scenarios: stored.scenarios,
+            };
+          }
+          console.warn(
+            "V2 tables unavailable — run supabase/migrations/0002_v2.sql to sync wishlists, photos and scenarios.",
+            error,
+          );
         }
 
         if (cancelled) return;
+        // Details live in their own V2 table, so merge them into the homes the
+        // UI reads. Local snapshots already contain merged homes; merging again
+        // is harmless and keeps both paths consistent.
+        next = {
+          ...next,
+          homes: next.homes.map((home) =>
+            mergeDetails(home, next.details[home.id]),
+          ),
+        };
+        setV2Synced(schemaReady);
         setData(next);
         setStatus("synced");
       } catch (error) {
@@ -441,15 +1078,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Offline / unconfigured fallback keeps working across reloads.
+  // Local mirror keeps device-only mode working across reloads, and protects
+  // V2 data when the optional V2 tables have not been created yet.
   useEffect(() => {
-    if (!ready || status !== "local") return;
+    if (!ready) return;
+    if (status !== "local" && v2Synced) return;
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch {
       // Storage can be full or blocked; the in-memory state still works.
     }
-  }, [data, ready, status]);
+  }, [data, ready, status, v2Synced]);
 
   const pushMutation = useCallback(
     (run: () => PromiseLike<{ error: { message: string } | null }>) => {
@@ -470,6 +1109,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [status],
   );
 
+  const pushV2 = useCallback(
+    (run: () => PromiseLike<{ error: { message: string } | null }>) => {
+      if (!v2Synced) return;
+      pushMutation(run);
+    },
+    [v2Synced, pushMutation],
+  );
+
   const addHome = useCallback(
     (input: NewHomeInput): Home | null => {
       const address = input.address.trim();
@@ -480,8 +1127,23 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       if (duplicate) return null;
 
       const yearBuilt = Number(input.yearBuilt);
+      const facts: PropertyFacts = {
+        ...(input.facts ?? {}),
+        pool: input.pool ?? null,
+        gated: input.gated ?? null,
+      };
+      if (input.garageCars !== undefined && input.garageCars !== null) {
+        facts.garageCars = input.garageCars;
+      }
+      if (input.hoa !== undefined && input.hoa !== null) {
+        facts.hoa = input.hoa;
+      }
+      if (input.lotAcres !== undefined && input.lotAcres !== null) {
+        facts.lotAcres = input.lotAcres;
+      }
+
       const home: Home = {
-        id: newId(),
+        id: newId("home"),
         address,
         city: input.city.trim(),
         price: Number.isFinite(input.price) ? Math.max(0, input.price) : 0,
@@ -490,35 +1152,172 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         baths: Number.isFinite(input.baths) ? Math.max(0, input.baths) : 0,
         sqft: Number.isFinite(input.sqft) ? Math.max(0, input.sqft) : 0,
         lot: input.lot?.trim() ?? "",
-        garage: "",
-        pool: false,
-        gated: false,
-        hoa: 0,
+        garage: input.garage?.trim() ?? "",
+        pool: input.pool === true,
+        gated: input.gated === true,
+        hoa: input.hoa && input.hoa > 0 ? input.hoa : 0,
         yearBuilt: Number.isFinite(yearBuilt)
           ? Math.max(0, Math.round(yearBuilt))
           : 0,
         type: input.type?.trim() || "Single family",
         daysOnMarket: 0,
         imageFilter: "none",
-        description: "",
-        features: [],
+        description: input.description?.trim() ?? "",
+        features: input.features ?? [],
         saved: true,
         tourRequested: false,
+        photo: input.photo ?? null,
+        listingUrl: input.listingUrl?.trim() ?? "",
+        notes: input.notes?.trim() ?? "",
+        favorite: false,
+        facts,
+        tourDate: null,
+        tourStatus: "none",
+      };
+
+      const details: PropertyDetails = {
+        homeId: home.id,
+        photo: home.photo ?? null,
+        listingUrl: home.listingUrl ?? "",
+        notes: home.notes ?? "",
+        favorite: false,
+        facts,
+        tourDate: null,
+        tourStatus: "none",
+        updatedAt: nowIso(),
       };
 
       setData((current) => ({
         ...current,
         homes: [...current.homes, home],
+        details: { ...current.details, [home.id]: details },
       }));
       pushMutation(() =>
         supabase!
           .from("homes")
           .insert(toHomeRow(home, data.homes.length)),
       );
+      // Facts (including "unknown" pool/gated choices) live in the V2 details
+      // record. pushV2 is a no-op until the migration has been run.
+      pushV2(() =>
+        supabase!
+          .from("property_details")
+          .upsert(toDetailsRow(details, ownerId), { onConflict: "home_id" }),
+      );
 
       return home;
     },
-    [data.homes, pushMutation],
+    [data.homes, ownerId, pushMutation, pushV2],
+  );
+
+  const updateHome = useCallback(
+    (homeId: string, patch: HomeUpdate) => {
+      const coreKeys: (keyof Home)[] = [
+        "address",
+        "city",
+        "price",
+        "beds",
+        "baths",
+        "sqft",
+        "lot",
+        "garage",
+        "pool",
+        "gated",
+        "hoa",
+        "yearBuilt",
+        "type",
+        "description",
+        "features",
+        "saved",
+        "tourRequested",
+      ];
+      const corePatch: Record<string, unknown> = {};
+      for (const key of coreKeys) {
+        if (key in patch) corePatch[key] = patch[key as keyof HomeUpdate];
+      }
+
+      const detailPatch = {
+        listingUrl: patch.listingUrl,
+        photo: patch.photo,
+        notes: patch.notes,
+        favorite: patch.favorite,
+        facts: patch.facts,
+        tourDate: patch.tourDate,
+        tourStatus: patch.tourStatus,
+      };
+      const hasDetailPatch = Object.values(detailPatch).some(
+        (value) => value !== undefined,
+      );
+
+      let nextDetails: PropertyDetails | null = null;
+      if (hasDetailPatch) {
+        const existing = data.details[homeId];
+        const baseDetails: PropertyDetails = existing ?? {
+          homeId,
+          photo: null,
+          listingUrl: "",
+          notes: "",
+          favorite: false,
+          facts: {},
+          tourDate: null,
+          tourStatus: "none",
+          updatedAt: "",
+        };
+        nextDetails = {
+          ...baseDetails,
+          ...(detailPatch.listingUrl !== undefined
+            ? { listingUrl: detailPatch.listingUrl }
+            : {}),
+          ...(detailPatch.photo !== undefined ? { photo: detailPatch.photo } : {}),
+          ...(detailPatch.notes !== undefined ? { notes: detailPatch.notes } : {}),
+          ...(detailPatch.favorite !== undefined
+            ? { favorite: detailPatch.favorite }
+            : {}),
+          ...(detailPatch.facts !== undefined
+            ? { facts: { ...baseDetails.facts, ...detailPatch.facts } }
+            : {}),
+          ...(detailPatch.tourDate !== undefined
+            ? { tourDate: detailPatch.tourDate }
+            : {}),
+          ...(detailPatch.tourStatus !== undefined
+            ? { tourStatus: detailPatch.tourStatus }
+            : {}),
+          updatedAt: nowIso(),
+        };
+      }
+
+      setData((current) => {
+        const homes = current.homes.map((home) => {
+          if (home.id !== homeId) return home;
+          const merged = { ...home, ...corePatch } as Home;
+          return nextDetails ? mergeDetails(merged, nextDetails) : merged;
+        });
+
+        return {
+          ...current,
+          homes,
+          details: nextDetails
+            ? { ...current.details, [homeId]: nextDetails }
+            : current.details,
+        };
+      });
+
+      if (Object.keys(corePatch).length > 0) {
+        pushMutation(() =>
+          supabase!.from("homes").update(corePatch).eq("id", homeId),
+        );
+      }
+      if (nextDetails) {
+        pushV2(() =>
+          supabase!
+            .from("property_details")
+            .upsert(toDetailsRow(nextDetails, ownerId), {
+              onConflict: "home_id",
+            }),
+        );
+      }
+    },
+    [data.details, ownerId, pushMutation, pushV2],
   );
 
   const removeHome = useCallback(
@@ -529,14 +1328,20 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       setData((current) => {
         const tourNotes = { ...current.tourNotes };
         delete tourNotes[homeId];
+        const details = { ...current.details };
+        delete details[homeId];
         return {
           ...current,
           homes: current.homes.filter((entry) => entry.id !== homeId),
           tourNotes,
+          details,
+          scenarios: current.scenarios.filter(
+            (scenario) => scenario.propertyId !== homeId,
+          ),
         };
       });
 
-      // Tour notes cascade from the home row, so one delete cleans both.
+      // Property details and scenario FKs cascade from the home row.
       pushMutation(() => supabase!.from("homes").delete().eq("id", homeId));
     },
     [data.homes, pushMutation],
@@ -581,6 +1386,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [data.homes, pushMutation],
   );
 
+  const toggleFavorite = useCallback(
+    (homeId: string) => {
+      const home = data.homes.find((entry) => entry.id === homeId);
+      if (!home) return;
+      updateHome(homeId, { favorite: !home.favorite });
+    },
+    [data.homes, updateHome],
+  );
+
   const toggleWishlistItem = useCallback(
     (itemId: string) => {
       const item = data.wishlist.find((entry) => entry.id === itemId);
@@ -611,7 +1425,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           )
           .reduce((max, item) => Math.max(max, item.position), -1) + 1;
       const item: WishlistItem = {
-        id: newId(),
+        id: newId("wishlist-item"),
         kind,
         category,
         label: trimmed,
@@ -627,6 +1441,283 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       );
     },
     [data.wishlist, pushMutation],
+  );
+
+  const createWishlistAction = useCallback(
+    (
+      name: string,
+      budget: number | null = null,
+      makeActive = false,
+    ) => {
+      const trimmed = name.trim();
+      if (!trimmed) return null;
+      const active = makeActive || data.wishlists.length === 0;
+      const wishlist = createWishlist(trimmed, {
+        active,
+        budget,
+      });
+      const deactivated = active
+        ? data.wishlists
+            .filter((entry) => entry.isActive)
+            .map((entry) => ({ ...entry, isActive: false }))
+        : [];
+      setData((current) => ({
+        ...current,
+        wishlists: [
+          ...current.wishlists.map((entry) =>
+            active ? { ...entry, isActive: false } : entry,
+          ),
+          wishlist,
+        ],
+      }));
+      pushV2(() =>
+        supabase!
+          .from("wishlists")
+          .upsert(toWishlistV2Row(wishlist, ownerId), { onConflict: "id" }),
+      );
+      if (deactivated.length > 0) {
+        pushV2(() =>
+          supabase!
+            .from("wishlists")
+            .upsert(
+              deactivated.map((entry) => toWishlistV2Row(entry, ownerId)),
+              { onConflict: "id" },
+            ),
+        );
+      }
+      return wishlist;
+    },
+    [data.wishlists, ownerId, pushV2],
+  );
+
+  const renameWishlist = useCallback(
+    (wishlistId: string, name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      const existing = data.wishlists.find(
+        (wishlist) => wishlist.id === wishlistId,
+      );
+      if (!existing) return;
+      const updated: Wishlist = {
+        ...existing,
+        name: trimmed,
+        updatedAt: nowIso(),
+      };
+      setData((current) => ({
+        ...current,
+        wishlists: current.wishlists.map((wishlist) =>
+          wishlist.id === wishlistId ? updated : wishlist,
+        ),
+      }));
+      pushV2(() =>
+        supabase!
+          .from("wishlists")
+          .upsert(toWishlistV2Row(updated, ownerId), { onConflict: "id" }),
+      );
+    },
+    [data.wishlists, ownerId, pushV2],
+  );
+
+  const duplicateWishlistAction = useCallback(
+    (wishlistId: string, name?: string) => {
+      const source = data.wishlists.find((wishlist) => wishlist.id === wishlistId);
+      if (!source) return null;
+      const copy = duplicateWishlist(
+        source,
+        data.requirements,
+        name?.trim() || `${source.name} copy`,
+      );
+      setData((current) => ({
+        ...current,
+        wishlists: [...current.wishlists, copy.wishlist],
+        requirements: [...current.requirements, ...copy.requirements],
+      }));
+      pushV2(() =>
+        supabase!
+          .from("wishlists")
+          .upsert(toWishlistV2Row(copy.wishlist, ownerId), { onConflict: "id" }),
+      );
+      if (copy.requirements.length > 0) {
+        pushV2(() =>
+          supabase!
+            .from("wishlist_requirements")
+            .upsert(
+              copy.requirements.map((requirement) =>
+                toRequirementV2Row(requirement, ownerId),
+              ),
+              { onConflict: "id" },
+            ),
+        );
+      }
+      return copy.wishlist;
+    },
+    [data.requirements, data.wishlists, ownerId, pushV2],
+  );
+
+  const deleteWishlist = useCallback(
+    (wishlistId: string) => {
+      if (data.wishlists.length <= 1) return false;
+      const remaining = data.wishlists.filter(
+        (wishlist) => wishlist.id !== wishlistId,
+      );
+      const wasActive = data.wishlists.find(
+        (wishlist) => wishlist.id === wishlistId,
+      )?.isActive;
+      const nextActiveId = wasActive ? remaining[0]?.id : undefined;
+      setData((current) => ({
+        ...current,
+        wishlists: remaining.map((wishlist) => ({
+          ...wishlist,
+          isActive: nextActiveId ? wishlist.id === nextActiveId : wishlist.isActive,
+        })),
+        requirements: current.requirements.filter(
+          (requirement) => requirement.wishlistId !== wishlistId,
+        ),
+        scenarios: current.scenarios.map((scenario) =>
+          scenario.wishlistId === wishlistId
+            ? { ...scenario, wishlistId: null }
+            : scenario,
+        ),
+      }));
+      pushV2(() => supabase!.from("wishlists").delete().eq("id", wishlistId));
+      if (nextActiveId) {
+        pushV2(() =>
+          supabase!
+            .from("wishlists")
+            .update({ is_active: true })
+            .eq("id", nextActiveId),
+        );
+      }
+      return true;
+    },
+    [data.wishlists, pushV2],
+  );
+
+  const setActiveWishlist = useCallback(
+    (wishlistId: string) => {
+      if (!data.wishlists.some((wishlist) => wishlist.id === wishlistId)) return;
+      const changed = data.wishlists
+        .filter((wishlist) => wishlist.isActive !== (wishlist.id === wishlistId))
+        .map((wishlist) => ({
+          ...wishlist,
+          isActive: wishlist.id === wishlistId,
+        }));
+      setData((current) => ({
+        ...current,
+        wishlists: current.wishlists.map((wishlist) => ({
+          ...wishlist,
+          isActive: wishlist.id === wishlistId,
+        })),
+      }));
+      if (changed.length > 0) {
+        pushV2(() =>
+          supabase!
+            .from("wishlists")
+            .upsert(
+              changed.map((wishlist) => toWishlistV2Row(wishlist, ownerId)),
+              { onConflict: "id" },
+            ),
+        );
+      }
+    },
+    [data.wishlists, ownerId, pushV2],
+  );
+
+  const updateWishlistBudget = useCallback(
+    (wishlistId: string, budget: number | null) => {
+      const value =
+        budget !== null && Number.isFinite(budget) && budget > 0 ? budget : null;
+      const existing = data.wishlists.find(
+        (wishlist) => wishlist.id === wishlistId,
+      );
+      if (!existing) return;
+      const updated: Wishlist = {
+        ...existing,
+        budget: value,
+        updatedAt: nowIso(),
+      };
+      setData((current) => ({
+        ...current,
+        wishlists: current.wishlists.map((wishlist) =>
+          wishlist.id === wishlistId ? updated : wishlist,
+        ),
+      }));
+      pushV2(() =>
+        supabase!
+          .from("wishlists")
+          .upsert(toWishlistV2Row(updated, ownerId), { onConflict: "id" }),
+      );
+    },
+    [data.wishlists, ownerId, pushV2],
+  );
+
+  const addRequirement = useCallback(
+    (input: Parameters<typeof createRequirement>[0]) => {
+      const position =
+        data.requirements
+          .filter((requirement) => requirement.wishlistId === input.wishlistId)
+          .reduce((max, requirement) => Math.max(max, requirement.position), -1) +
+        1;
+      const requirement = createRequirement({
+        ...input,
+        position,
+        configured: input.configured ?? true,
+      });
+      setData((current) => ({
+        ...current,
+        requirements: [...current.requirements, requirement],
+      }));
+      pushV2(() =>
+        supabase!
+          .from("wishlist_requirements")
+          .upsert(toRequirementV2Row(requirement, ownerId), {
+            onConflict: "id",
+          }),
+      );
+      return requirement;
+    },
+    [data.requirements, ownerId, pushV2],
+  );
+
+  const updateRequirement = useCallback(
+    (requirementId: string, patch: Partial<WishlistRequirement>) => {
+      const existing = data.requirements.find(
+        (requirement) => requirement.id === requirementId,
+      );
+      if (!existing) return;
+      const updated: WishlistRequirement = {
+        ...existing,
+        ...patch,
+        updatedAt: nowIso(),
+      };
+      setData((current) => ({
+        ...current,
+        requirements: current.requirements.map((requirement) =>
+          requirement.id === requirementId ? updated : requirement,
+        ),
+      }));
+      pushV2(() =>
+        supabase!
+          .from("wishlist_requirements")
+          .upsert(toRequirementV2Row(updated, ownerId), { onConflict: "id" }),
+      );
+    },
+    [data.requirements, ownerId, pushV2],
+  );
+
+  const removeRequirement = useCallback(
+    (requirementId: string) => {
+      setData((current) => ({
+        ...current,
+        requirements: current.requirements.filter(
+          (requirement) => requirement.id !== requirementId,
+        ),
+      }));
+      pushV2(() =>
+        supabase!.from("wishlist_requirements").delete().eq("id", requirementId),
+      );
+    },
+    [pushV2],
   );
 
   const saveTourNote = useCallback(
@@ -675,7 +1766,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       const trimmed = body.trim();
       if (!trimmed) return;
       const note: ComparisonNote = {
-        id: newId(),
+        id: newId("note"),
         body: trimmed,
         createdAt: new Date().toISOString(),
       };
@@ -694,6 +1785,81 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [pushMutation],
   );
 
+  const saveScenarioInputs = useCallback(
+    (inputs: BudgetInputs, propertyId: string | null = null) => {
+      const active = pickActiveWishlist(data.wishlists);
+      const existing = data.scenarios.find((scenario) =>
+        propertyId
+          ? scenario.propertyId === propertyId
+          : scenario.propertyId === null &&
+            (scenario.wishlistId === active?.id || scenario.wishlistId === null),
+      );
+      const scenario: BudgetScenario = {
+        // Stable ids make repeated writes idempotent: a fast Enter key or two
+        // quick edits cannot create duplicate property plans.
+        id:
+          existing?.id ??
+          (propertyId
+            ? `scenario-property-${propertyId}`
+            : `scenario-wishlist-${active?.id ?? "default"}`),
+        name:
+          existing?.name ??
+          (propertyId
+            ? data.homes.find((home) => home.id === propertyId)?.address ??
+              "Property plan"
+            : "Baseline plan"),
+        wishlistId: existing?.wishlistId ?? active?.id ?? null,
+        propertyId,
+        inputs,
+        updatedAt: nowIso(),
+      };
+      setData((current) => ({
+        ...current,
+        scenarios: [
+          ...current.scenarios.filter(
+            (entry) =>
+              entry.id !== scenario.id &&
+              (!propertyId || entry.propertyId !== propertyId),
+          ),
+          scenario,
+        ],
+      }));
+      pushV2(() =>
+        supabase!
+          .from("budget_scenarios")
+          .upsert(toScenarioRow(scenario, ownerId), { onConflict: "id" }),
+      );
+      return scenario;
+    },
+    [data.homes, data.scenarios, data.wishlists, ownerId, pushV2],
+  );
+
+  const updateScenarioInputs = useCallback(
+    (scenarioId: string, inputs: BudgetInputs) => {
+      const existing = data.scenarios.find(
+        (scenario) => scenario.id === scenarioId,
+      );
+      if (!existing) return;
+      const updated: BudgetScenario = {
+        ...existing,
+        inputs,
+        updatedAt: nowIso(),
+      };
+      setData((current) => ({
+        ...current,
+        scenarios: current.scenarios.map((scenario) =>
+          scenario.id === scenarioId ? updated : scenario,
+        ),
+      }));
+      pushV2(() =>
+        supabase!
+          .from("budget_scenarios")
+          .upsert(toScenarioRow(updated, ownerId), { onConflict: "id" }),
+      );
+    },
+    [data.scenarios, ownerId, pushV2],
+  );
+
   useEffect(
     () => () => {
       if (budgetTimer.current) clearTimeout(budgetTimer.current);
@@ -702,47 +1868,170 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<AppData>(() => {
+    const active = pickActiveWishlist(data.wishlists);
+    const activeRequirements = requirementsFor(
+      data.requirements,
+      active?.id ?? null,
+    );
+    const progress = wishlistSetupProgress(activeRequirements);
     const savedHomes = data.homes.filter((home) => home.saved);
+
+    const defaultScenario =
+      data.scenarios.find(
+        (scenario) =>
+          scenario.propertyId === null &&
+          (scenario.wishlistId === active?.id || scenario.wishlistId === null),
+      ) ??
+      data.scenarios.find((scenario) => scenario.propertyId === null) ?? {
+        id: "scenario-default",
+        name: "Baseline plan",
+        wishlistId: active?.id ?? null,
+        propertyId: null,
+        inputs: DEFAULT_BUDGET_INPUTS,
+        updatedAt: "",
+      };
+
+    const scoredHomes: ScoredHome[] = data.homes.map((home) => {
+      const propertyScenario = data.scenarios.find(
+        (scenario) => scenario.propertyId === home.id,
+      );
+      const inputs = propertyScenario
+        ? propertyScenario.inputs
+        : inputsForProperty(
+            { price: home.price, hoa: home.hoa },
+            {
+              downPercent: defaultScenario.inputs.downPercent,
+              rate: defaultScenario.inputs.rate,
+              termYears: defaultScenario.inputs.termYears,
+              targetMonthly: defaultScenario.inputs.targetMonthly,
+            },
+          );
+      const monthlyCost =
+        home.price > 0 ? calculateBudget(inputs).totalMonthly : null;
+      const facts = factsFromHome(home, { monthlyOwnershipCost: monthlyCost });
+      const score = scoreRequirements(activeRequirements, facts);
+      return { home, facts, score, monthlyCost };
+    });
+
+    const scoredSaved = scoredHomes.filter((entry) => entry.home.saved);
+    const topMatches = scoredSaved
+      .filter(
+        (entry) => !entry.score.disqualified && entry.score.score !== null,
+      )
+      .sort(
+        (a, b) =>
+          (b.score.score ?? 0) - (a.score.score ?? 0) ||
+          b.score.coverage - a.score.coverage,
+      );
+
+    const homesNeedingEvaluation = scoredSaved.filter(
+      (entry) =>
+        !entry.score.disqualified &&
+        (entry.score.score === null ||
+          entry.score.coverage < 50 ||
+          entry.score.mustUnknown.length > 0 ||
+          entry.score.dealbreakersUnknown.length > 0),
+    );
+
     const topMatch =
-      [...data.homes].sort((a, b) => b.match - a.match)[0] ?? DEFAULT_HOMES[0];
-    const mustItems = data.wishlist.filter((item) => item.kind === "must");
+      topMatches[0]?.home ??
+      savedHomes[0] ??
+      data.homes[0] ??
+      DEFAULT_HOMES[0];
+
+    const today = new Date().toISOString().slice(0, 10);
+    const upcomingTours = data.homes.filter((home) => {
+      if (home.tourStatus === "cancelled" || home.tourStatus === "toured") {
+        return false;
+      }
+      if (home.tourDate && home.tourDate >= today) return true;
+      return home.tourRequested && !home.tourDate;
+    }).length;
+
+    const mustRequirements = activeRequirements.filter(
+      (requirement) => requirement.importance === "must",
+    );
 
     return {
       ...data,
       ready,
       status,
       configured: hasSupabaseConfig,
+      v2Synced,
       topMatch,
       savedCount: savedHomes.length,
-      upcomingTours: data.homes.filter((home) => home.tourRequested).length,
-      strongMatches: data.homes.filter((home) => home.match >= 75).length,
-      wishlistDone: data.wishlist.filter((item) => item.done).length,
-      wishlistTotal: data.wishlist.length,
-      mustDone: mustItems.filter((item) => item.done).length,
-      mustTotal: mustItems.length,
+      upcomingTours,
+      strongMatches: topMatches.length,
+      wishlistDone: progress.configured,
+      wishlistTotal: progress.total,
+      mustDone: mustRequirements.filter((requirement) => requirement.configured)
+        .length,
+      mustTotal: mustRequirements.length,
+      activeWishlist: active,
+      activeRequirements,
+      wishlistProgress: progress,
+      scoredHomes,
+      topMatches,
+      homesNeedingEvaluation,
+      defaultScenario,
+      activeScenario: defaultScenario,
+      getScoreForHome: (homeId: string) =>
+        scoredHomes.find((entry) => entry.home.id === homeId)?.score ?? null,
+      getMonthlyCostForHome: (homeId: string) =>
+        scoredHomes.find((entry) => entry.home.id === homeId)?.monthlyCost ?? null,
+      getBudgetScenarioForProperty: (homeId: string) =>
+        data.scenarios.find((scenario) => scenario.propertyId === homeId) ??
+        null,
       addHome,
+      updateHome,
       removeHome,
       toggleSaved,
       setTourRequested,
+      toggleFavorite,
       toggleWishlistItem,
       addWishlistItem,
+      createWishlist: createWishlistAction,
+      renameWishlist,
+      duplicateWishlist: duplicateWishlistAction,
+      deleteWishlist,
+      setActiveWishlist,
+      updateWishlistBudget,
+      addRequirement,
+      updateRequirement,
+      removeRequirement,
       saveTourNote,
       updateBudget,
       addComparisonNote,
+      saveScenarioInputs,
+      updateScenarioInputs,
     };
   }, [
     data,
     ready,
     status,
+    v2Synced,
     addHome,
+    updateHome,
     removeHome,
     toggleSaved,
     setTourRequested,
+    toggleFavorite,
     toggleWishlistItem,
     addWishlistItem,
+    createWishlistAction,
+    renameWishlist,
+    duplicateWishlistAction,
+    deleteWishlist,
+    setActiveWishlist,
+    updateWishlistBudget,
+    addRequirement,
+    updateRequirement,
+    removeRequirement,
     saveTourNote,
     updateBudget,
     addComparisonNote,
+    saveScenarioInputs,
+    updateScenarioInputs,
   ]);
 
   return (

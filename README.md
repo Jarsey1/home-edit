@@ -1,7 +1,8 @@
 # The Next Home Edit
 
-A mobile-first house-hunting PWA: one shared shortlist of homes, a wishlist,
-side-by-side comparisons, tour notes, a budget planner and neighborhood notes.
+A mobile-first house-hunting PWA: one shared shortlist of homes, multiple
+wishlists with deterministic match scoring, side-by-side comparisons, tour
+notes, property-specific budget plans and neighborhood notes.
 
 Built with Next.js (App Router), React, Tailwind CSS and Supabase.
 
@@ -44,8 +45,14 @@ Built with Next.js (App Router), React, Tailwind CSS and Supabase.
 
 3. Create the tables. In Supabase, open **SQL Editor → New query**, paste the
    contents of [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql),
-   and run it. It creates five tables and permissive policies for the shared
-   dataset.
+   and run it. It creates the original five tables and permissive policies for
+   the shared dataset.
+
+   Then run [`supabase/migrations/0002_v2.sql`](supabase/migrations/0002_v2.sql).
+   It is additive: it adds `profiles`, `wishlists`, `wishlist_requirements`,
+   `property_details`, `property_tours` and `budget_scenarios`, and leaves all
+   existing rows alone. If you skip this step, every V2 feature still works on
+   this device using `localStorage`; it just will not sync between devices.
 
 4. Start the app:
 
@@ -65,8 +72,12 @@ Built with Next.js (App Router), React, Tailwind CSS and Supabase.
 - If `.env.local` is missing or Supabase is unreachable, the app falls back to
   `localStorage` and keeps working on that device. The More screen shows whether
   data is synced or device-only.
-- Tables: `homes`, `wishlist_items`, `tour_notes`, `budget_settings`,
-  `comparison_notes`.
+- Original tables: `homes`, `wishlist_items`, `tour_notes`,
+  `budget_settings`, `comparison_notes`.
+- V2 tables: `profiles`, `wishlists`, `wishlist_requirements`,
+  `property_details`, `property_tours`, `budget_scenarios`. Facts, photos,
+  personal notes and tour dates live in `property_details`; wishlist-specific
+  scores are never stored because they are recalculated from facts.
 
 ## Adding a home
 
@@ -134,11 +145,59 @@ npm install
 Then create `.env.local` again with the same URL and key (it is intentionally
 not committed), and run `npm run dev`.
 
+## Wishlists and match scoring
+
+- A wishlist is an independent set of typed preferences with an optional
+  budget. You can create, rename, duplicate, delete (with confirmation) and
+  switch the active wishlist.
+- Requirements belong to one of eight categories and use one of six
+  conditions: yes/no, numeric minimum, numeric maximum, numeric range, text /
+  category, or location exclusion.
+- Importance is stored separately from the expected value:
+  **must-have = 5**, **nice-to-have = 2**, **not important = 0**, and
+  **dealbreaker = hard filter**. Any requirement can override its weight.
+- Match score = weighted points earned ÷ weighted points evaluated × 100.
+  Only evaluated must/nice requirements go in the denominator. Unknown facts
+  are never treated as failures.
+- Coverage shows how much of the weighted wishlist was actually evaluated.
+  A property can show a high score and still be marked “awaiting verification”.
+- A confirmed dealbreaker disqualifies a property and is shown separately from
+  the percentage. Unknown dealbreakers are never disqualifying.
+- Wishlist setup progress counts reviewed/configured preferences. It is
+  deliberately separate from property match scores.
+
+The scoring engine is deterministic and lives in
+[`app/lib/scoring.ts`](app/lib/scoring.ts). Property facts are derived in
+[`app/lib/property-facts.ts`](app/lib/property-facts.ts), so the same home can
+be scored against different wishlists without rewriting its listing data.
+
+## Budget planner
+
+The planner starts from the listing price and HOA when opened from a home, then
+keeps every assumption in a separate `budget_scenarios` record. Editing a plan
+never edits the listing. It uses the standard fixed-rate amortization formula,
+handles zero-interest loans, synchronizes down payment percentage and amount,
+and shows monthly ownership cost, annual cost, upfront cash and the difference
+from a target monthly budget. All figures are estimates, not lender quotes.
+
+## Tests
+
+```bash
+npm test        # 42 deterministic unit tests (Vitest)
+npm run lint    # ESLint
+npm run build   # production build
+```
+
+Coverage includes weighted scoring, missing must-haves, unknown facts,
+dealbreaker exclusions, wishlist switching, mortgage math including zero
+interest, budget updates, property persistence and owner data isolation.
+
 ## Scripts
 
 ```bash
 npm run dev    # development server (LAN + PWA friendly)
 npm run build  # production build
+npm test       # unit tests
 npm run lint   # eslint
 ```
 
@@ -159,10 +218,18 @@ app/
   layout.tsx                fonts, metadata, data provider
   lib/
     supabase.ts             client (null when unconfigured)
-    app-data.tsx            shared state, Supabase reads/writes, fallback
+    app-data.tsx            shared state, legacy + V2 Supabase reads/writes
     homes.ts                Home type, formatting, demo homes
     defaults.ts             starter data
-    types.ts                persisted record types
+    types.ts                legacy persisted record types
+    v2-types.ts             wishlists, requirements, facts, scenarios
+    scoring.ts              deterministic weighted match engine
+    finance.ts              amortization, ownership cost, upfront cash
+    property-facts.ts       converts homes + details into scoring facts
+    wishlists.ts            wishlist defaults, import, duplicate, progress
+    ownership.ts            owner scoping and write guards
+    validation.ts           numeric, URL and suspicious-price validation
+    image.ts                client-side photo compression
     miami-dade-parcels.ts   Miami-Dade County parcel lookup (no key)
     stored-properties.ts    reads saved facts back from Supabase
   api/
@@ -173,3 +240,20 @@ app/
     screens/                all eight screens + Add Home
 supabase/migrations/        SQL schema + policies
 ```
+
+
+## V2 notes and limitations
+
+- The current deployment intentionally remains a **shared private workspace**
+  (no login), matching the original app. V2 records carry an `owner_id` and the
+  migration includes auth-ready RLS policies, but the live project still uses
+  the shared policies until Supabase Auth is enabled. Do not share the
+  deployment publicly until then.
+- If `0002_v2.sql` has not been run, wishlists, photos, personal notes and
+  budget plans are stored only on the current device. The More screen shows
+  whether V2 data is synced or device-only.
+- Uploaded photos are compressed in the browser and stored as data URLs. This
+  avoids Storage costs but is intended for a handful of shortlisted homes, not
+  a large photo library.
+- Scores are intentionally deterministic. No AI or third-party valuation is
+  used.

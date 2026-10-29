@@ -2,53 +2,84 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import { useAppData } from "../../lib/app-data";
-import { translateWishlistText, useI18n } from "../../lib/i18n";
-import type { WishlistItem } from "../../lib/types";
+import { formatPrice } from "../../lib/homes";
+import {
+  categoryKey,
+  importanceKey,
+  translateRequirementName,
+  translateWishlistName,
+  useI18n,
+  type TranslationKey,
+} from "../../lib/i18n";
+import type { Wishlist, WishlistRequirement } from "../../lib/v2-types";
+import { groupByCategory, wishlistSetupProgress } from "../../lib/wishlists";
 import { BackButton } from "../back-button";
 import { HouseIllustration } from "../house-illustration";
+import { Sheet } from "../sheet";
+import { RequirementEditor } from "../wishlist-requirement-editor";
 import {
   ArrowRightIcon,
-  CheckIcon,
   ChevronRightIcon,
+  PencilIcon,
   PlusIcon,
+  TrashIcon,
 } from "../icons";
 
-type Filter = "all" | "must" | "nice";
-
-type Category = {
-  name: string;
-  done: number;
-  total: number;
-  items: WishlistItem[];
-};
-
-function groupCategories(items: WishlistItem[]): Category[] {
-  const groups = new Map<string, WishlistItem[]>();
-
-  for (const item of items) {
-    if (item.kind !== "category") continue;
-    const name = item.category ?? "Other";
-    const group = groups.get(name) ?? [];
-    group.push(item);
-    groups.set(name, group);
-  }
-
-  return [...groups.entries()].map(([name, categoryItems]) => ({
-    name,
-    done: categoryItems.filter((item) => item.done).length,
-    total: categoryItems.length,
-    items: categoryItems,
-  }));
-}
-
-function ProgressBar({ value }: { value: number }) {
+function ProgressBar({ value, className = "" }: { value: number; className?: string }) {
   return (
-    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-sand">
+    <div className={`h-1.5 flex-1 overflow-hidden rounded-full bg-sand ${className}`}>
       <div
         className="h-full rounded-full bg-olive transition-[width] duration-300"
-        style={{ width: `${Math.min(100, value)}%` }}
+        style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
       />
     </div>
+  );
+}
+
+function expectedLabel(
+  requirement: WishlistRequirement,
+  locale: "en" | "es",
+  t: (key: TranslationKey, vars?: Record<string, string | number>) => string,
+) {
+  const value = requirement.expectedValue;
+  const currency =
+    requirement.featureKey === "price" ||
+    requirement.featureKey === "monthlyOwnershipCost" ||
+    requirement.featureKey === "hoa";
+
+  if (requirement.type === "yes") {
+    return value === true ? t("common.yes") : t("common.no");
+  }
+  if (requirement.type === "range" && value && typeof value === "object") {
+    const range = value as { min?: number; max?: number };
+    return `${range.min ?? "?"} – ${range.max ?? "?"}`;
+  }
+  if (typeof value === "number") {
+    const formatted = currency ? formatPrice(value, locale) : String(value);
+    if (requirement.type === "min") return `≥ ${formatted}`;
+    if (requirement.type === "max") return `≤ ${formatted}`;
+    return formatted;
+  }
+  if (value && typeof value === "object" && "values" in value) {
+    return (value as { values: string[] }).values.join(", ");
+  }
+  return value === null || value === "" ? "—" : String(value);
+}
+
+function ImportanceBadge({ importance }: { importance: WishlistRequirement["importance"] }) {
+  const { t } = useI18n();
+  const styles =
+    importance === "must"
+      ? "border-olive/25 bg-olive/[0.08] text-olive"
+      : importance === "dealbreaker"
+        ? "border-clay/30 bg-clay/[0.08] text-clay"
+        : importance === "nice"
+          ? "border-gold/30 bg-gold/[0.08] text-[#8a7048]"
+          : "border-line bg-parchment text-muted";
+  return (
+    <span className={`rounded-full border px-2 py-0.5 text-[8.5px] uppercase tracking-[0.08em] ${styles}`}>
+      {t(importanceKey(importance))}
+    </span>
   );
 }
 
@@ -59,45 +90,101 @@ export function WishlistScreen({
   onBack: () => void;
   onBrowseHomes: () => void;
 }) {
-  const { wishlist, toggleWishlistItem, addWishlistItem } = useAppData();
+  const {
+    wishlists,
+    activeWishlist,
+    activeRequirements,
+    setActiveWishlist,
+    createWishlist,
+    renameWishlist,
+    duplicateWishlist,
+    deleteWishlist,
+    updateWishlistBudget,
+  } = useAppData();
   const { t, locale } = useI18n();
-  const [filter, setFilter] = useState<Filter>("all");
+
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editing, setEditing] = useState<WishlistRequirement | null>(null);
   const [openCategory, setOpenCategory] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState("");
+  const [dialog, setDialog] = useState<"new" | "rename" | "delete" | null>(null);
+  const [dialogName, setDialogName] = useState("");
+  const [dialogBudget, setDialogBudget] = useState("");
+  const [dialogError, setDialogError] = useState("");
 
-  const must = useMemo(
-    () => wishlist.filter((item) => item.kind === "must"),
-    [wishlist],
+  const activeId = activeWishlist?.id ?? "";
+  const progress = useMemo(
+    () => wishlistSetupProgress(activeRequirements),
+    [activeRequirements],
   );
-  const nice = useMemo(
-    () => wishlist.filter((item) => item.kind === "nice"),
-    [wishlist],
+  const groups = useMemo(
+    () => groupByCategory(activeRequirements),
+    [activeRequirements],
   );
-  const categories = useMemo(() => groupCategories(wishlist), [wishlist]);
 
-  const mustDone = must.filter((item) => item.done).length;
-  const niceDone = nice.filter((item) => item.done).length;
-
-  const filterTabs = [
-    { id: "all" as const, label: t("wishlist.all") },
-    { id: "must" as const, label: t("wishlist.must", { count: must.length }) },
-    { id: "nice" as const, label: t("wishlist.nice", { count: nice.length }) },
-  ];
-
-  function startAdding() {
-    if (filter === "all") setFilter("must");
-    setAdding(true);
+  function openNew() {
+    setDialogName("");
+    setDialogBudget("");
+    setDialogError("");
+    setDialog("new");
   }
 
-  function addItem(event: FormEvent) {
+  function openRename(wishlist: Wishlist) {
+    setDialogName(wishlist.name);
+    setDialogError("");
+    setDialog("rename");
+  }
+
+  function submitNew(event: FormEvent) {
     event.preventDefault();
-    const label = draft.trim();
-    if (!label) return;
-    addWishlistItem(filter === "nice" ? "nice" : "must", label);
-    setDraft("");
-    setAdding(false);
+    const name = dialogName.trim();
+    if (!name) {
+      setDialogError(t("wishlist.nameRequired"));
+      return;
+    }
+    const parsedBudget = Number(dialogBudget.replace(/,/g, ""));
+    createWishlist(
+      name,
+      Number.isFinite(parsedBudget) && parsedBudget > 0 ? parsedBudget : null,
+      true,
+    );
+    setDialog(null);
   }
+
+  function submitRename(event: FormEvent) {
+    event.preventDefault();
+    if (!activeWishlist) return;
+    const name = dialogName.trim();
+    if (!name) {
+      setDialogError(t("wishlist.nameRequired"));
+      return;
+    }
+    renameWishlist(activeWishlist.id, name);
+    setDialog(null);
+  }
+
+  function confirmDuplicate() {
+    if (!activeWishlist) return;
+    duplicateWishlist(activeWishlist.id);
+  }
+
+  function confirmDelete() {
+    if (!activeWishlist) return;
+    const removed = deleteWishlist(activeWishlist.id);
+    if (removed) setDialog(null);
+  }
+
+  function commitBudget(raw: string) {
+    if (!activeWishlist) return;
+    const parsed = Number(raw.replace(/,/g, ""));
+    updateWishlistBudget(
+      activeWishlist.id,
+      Number.isFinite(parsed) && parsed > 0 ? parsed : null,
+    );
+  }
+
+  const activeName = activeWishlist
+    ? translateWishlistName(activeWishlist.name, locale)
+    : "";
 
   return (
     <div className="flex flex-1 flex-col">
@@ -116,8 +203,8 @@ export function WishlistScreen({
 
         <button
           type="button"
-          onClick={startAdding}
-          aria-label={t("wishlist.addAria")}
+          onClick={openNew}
+          aria-label={t("wishlist.new")}
           className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-olive text-cream transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
         >
           <PlusIcon className="h-5 w-5" />
@@ -125,152 +212,271 @@ export function WishlistScreen({
       </header>
 
       <div className="px-6 pb-9">
-        <div className="mt-5 flex rounded-full border border-line bg-parchment p-1">
-          {filterTabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setFilter(tab.id)}
-              className={[
-                "flex-1 rounded-full px-2 py-2 text-[11px] transition-colors",
-                filter === tab.id
-                  ? "bg-olive font-medium text-cream shadow-sm"
-                  : "text-muted hover:text-ink",
-              ].join(" ")}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div
+          className="-mx-6 mt-5 flex gap-2 overflow-x-auto px-6 pb-1"
+          role="group"
+          aria-label={t("wishlist.switch")}
+        >
+          {wishlists.map((wishlist) => {
+            const isActive = wishlist.id === activeId;
+            return (
+              <button
+                key={wishlist.id}
+                type="button"
+                onClick={() => setActiveWishlist(wishlist.id)}
+                aria-pressed={isActive}
+                className={[
+                  "min-h-10 shrink-0 rounded-full border px-3.5 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40",
+                  isActive
+                    ? "border-olive bg-olive font-medium text-cream"
+                    : "border-line bg-white/50 text-muted hover:text-ink",
+                ].join(" ")}
+              >
+                {translateWishlistName(wishlist.name, locale)}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={openNew}
+            className="min-h-10 shrink-0 rounded-full border border-dashed border-olive/35 px-3.5 text-[11px] text-olive transition-colors hover:bg-olive/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40"
+          >
+            <PlusIcon className="mr-1 inline h-3 w-3" />
+            {t("wishlist.new")}
+          </button>
         </div>
 
-        {adding && (
-          <form
-            onSubmit={addItem}
-            className="mt-4 flex items-center gap-2 rounded-2xl border border-line bg-white/60 p-2 pl-4"
-          >
-            <input
-              autoFocus
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder={
-                filter === "nice"
-                  ? t("wishlist.addNice")
-                  : t("wishlist.addMust")
-              }
-              className="min-w-0 flex-1 bg-transparent text-[13px] text-ink placeholder:text-muted/70 focus:outline-none"
-            />
-            <button
-              type="submit"
-              className="rounded-full bg-olive px-3.5 py-2 text-[11px] font-medium text-cream"
-            >
-              {t("common.add")}
-            </button>
-          </form>
-        )}
+        {activeWishlist && (
+          <section className="mt-4 rounded-[26px] border border-line bg-parchment px-5 pb-5 pt-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted">
+                  {t("dashboard.activeWishlist")}
+                </p>
+                <h2 className="mt-1 break-words font-serif text-[24px] leading-tight tracking-[-0.01em] text-ink">
+                  {activeName}
+                </h2>
+              </div>
+              <span className="shrink-0 rounded-full bg-olive/[0.08] px-2.5 py-1 text-[9px] uppercase tracking-[0.1em] text-olive">
+                {t("wishlist.active")}
+              </span>
+            </div>
 
-        {filter === "all" && (
-          <div className="mt-5 space-y-2.5">
-            {categories.map((category) => {
-              const isOpen = openCategory === category.name;
-              const percent = (category.done / Math.max(1, category.total)) * 100;
-              return (
-                <div
-                  key={category.name}
-                  className="overflow-hidden rounded-[20px] border border-line bg-white/50"
-                >
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setOpenCategory(isOpen ? null : category.name)
+            <div className="mt-4 flex items-center gap-3">
+              <ProgressBar value={progress.percent} />
+              <span className="shrink-0 text-[10px] tabular-nums text-muted">
+                {Math.round(progress.percent)}%
+              </span>
+            </div>
+            <p className="mt-2 text-[11px] text-muted">
+              {t("wishlist.progressDetail", {
+                done: progress.configured,
+                total: progress.total,
+              })}
+            </p>
+            <p className="mt-1 text-[10px] leading-4 text-muted">
+              {t("wishlist.progressNote")}
+            </p>
+
+            <div className="mt-4 flex items-end gap-2 border-t border-line/80 pt-4">
+              <label className="min-w-0 flex-1">
+                <span className="text-[10px] uppercase tracking-[0.14em] text-muted">
+                  {t("wishlist.budget")}
+                </span>
+                <input
+                  key={`${activeWishlist.id}-${activeWishlist.budget ?? ""}`}
+                  defaultValue={
+                    activeWishlist.budget ? String(activeWishlist.budget) : ""
+                  }
+                  onBlur={(event) => commitBudget(event.currentTarget.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      commitBudget(event.currentTarget.value);
+                      event.currentTarget.blur();
                     }
-                    aria-expanded={isOpen}
-                    className="w-full px-4 pb-3.5 pt-3.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-olive/30"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-[13px] font-medium text-ink">
-                        {translateWishlistText(category.name, locale)}
-                      </span>
-                      <span className="text-[11px] tabular-nums text-muted">
-                        {category.done}/{category.total}
-                      </span>
-                    </div>
-                    <div className="mt-3 flex items-center gap-2.5">
-                      <ProgressBar value={percent} />
-                      <ChevronRightIcon
-                        className={[
-                          "h-3.5 w-3.5 shrink-0 text-muted/70 transition-transform",
-                          isOpen ? "rotate-90" : "",
-                        ].join(" ")}
-                      />
-                    </div>
-                  </button>
+                  }}
+                  inputMode="numeric"
+                  placeholder={t("wishlist.budgetPlaceholder")}
+                  className="mt-1.5 w-full rounded-xl border border-line bg-white/60 px-3 py-2.5 text-[12px] tabular-nums text-ink outline-none transition-colors placeholder:text-muted/50 focus:border-olive/35 focus:ring-2 focus:ring-olive/15"
+                />
+              </label>
+              <p className="shrink-0 pb-2.5 text-[11px] tabular-nums text-muted">
+                {activeWishlist.budget
+                  ? formatPrice(activeWishlist.budget, locale)
+                  : "—"}
+              </p>
+            </div>
 
-                  {isOpen && (
-                    <ul className="border-t border-line/80 px-4 py-3">
-                      {category.items.map((item) => (
-                        <li key={item.id}>
-                          <button
-                            type="button"
-                            role="checkbox"
-                            aria-checked={item.done}
-                            onClick={() => toggleWishlistItem(item.id)}
-                            className="flex w-full items-center gap-2.5 py-1.5 text-left text-[12px] text-ink/85 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
-                          >
-                            <span
-                              className={[
-                                "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
-                                item.done
-                                  ? "border-olive bg-olive text-cream"
-                                  : "border-line bg-cream",
-                              ].join(" ")}
-                            >
-                              {item.done && (
-                                <CheckIcon className="h-2.5 w-2.5" />
-                              )}
-                            </span>
-                            <span
-                              className={
-                                item.done
-                                  ? "text-muted line-through decoration-muted/40"
-                                  : ""
-                              }
-                            >
-                              {translateWishlistText(item.label, locale)}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              );
-            })}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => openRename(activeWishlist)}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-white/60 px-3 text-[10.5px] font-medium text-ink transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
+              >
+                <PencilIcon className="h-3 w-3 text-olive" />
+                {t("wishlist.rename")}
+              </button>
+              <button
+                type="button"
+                onClick={confirmDuplicate}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-white/60 px-3 text-[10.5px] font-medium text-ink transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
+              >
+                <PlusIcon className="h-3 w-3 text-olive" />
+                {t("wishlist.duplicate")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDialog("delete")}
+                disabled={wishlists.length <= 1}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-white/60 px-3 text-[10.5px] font-medium text-muted transition-colors hover:border-clay/30 hover:text-clay focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay/30 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <TrashIcon className="h-3 w-3" />
+                {t("wishlist.delete")}
+              </button>
+            </div>
+          </section>
+        )}
+
+        <section className="mt-6">
+          <div className="flex items-center justify-between">
+            <h2 className="font-serif text-[22px] tracking-[-0.01em] text-ink">
+              {t("wishlist.summary")}
+            </h2>
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(null);
+                setEditorOpen(true);
+              }}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-olive px-3.5 text-[10.5px] font-medium text-cream transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
+            >
+              <PlusIcon className="h-3.5 w-3.5" />
+              {t("wishlist.addRequirement")}
+            </button>
           </div>
-        )}
 
-        {filter === "must" && (
-          <Checklist
-            items={must}
-            onToggle={toggleWishlistItem}
-            title={t("wishlist.mustComplete", {
-              done: mustDone,
-              total: must.length,
-            })}
-            percent={(mustDone / Math.max(1, must.length)) * 100}
-          />
-        )}
+          {groups.length === 0 ? (
+            <div className="mt-4 rounded-[20px] border border-line bg-white/45 px-5 py-8 text-center">
+              <p className="font-serif text-[18px] text-ink">
+                {t("wishlist.noRequirements")}
+              </p>
+              <p className="mt-2 text-[11px] leading-5 text-muted">
+                {t("wishlist.noRequirementsBody")}
+              </p>
+            </div>
+          ) : (
+            <div className="mt-4 space-y-2.5">
+              {groups.map(({ category, items }) => {
+                const isOpen = openCategory === category;
+                const configured = items.filter((item) => item.configured).length;
+                const percent = (configured / Math.max(1, items.length)) * 100;
+                return (
+                  <div
+                    key={category}
+                    className="overflow-hidden rounded-[20px] border border-line bg-white/50"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setOpenCategory(isOpen ? null : category)}
+                      aria-expanded={isOpen}
+                      className="w-full px-4 pb-3.5 pt-3.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-olive/30"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[13px] font-medium text-ink">
+                          {t(categoryKey(category))}
+                        </span>
+                        <span className="text-[10px] tabular-nums text-muted">
+                          {configured}/{items.length}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex items-center gap-2.5">
+                        <ProgressBar value={percent} />
+                        <ChevronRightIcon
+                          className={[
+                            "h-3.5 w-3.5 shrink-0 text-muted transition-transform",
+                            isOpen ? "rotate-90" : "",
+                          ].join(" ")}
+                        />
+                      </div>
+                    </button>
 
-        {filter === "nice" && (
-          <Checklist
-            items={nice}
-            onToggle={toggleWishlistItem}
-            title={t("wishlist.niceComplete", {
-              done: niceDone,
-              total: nice.length,
-            })}
-            percent={(niceDone / Math.max(1, nice.length)) * 100}
-          />
-        )}
+                    {isOpen && (
+                      <ul className="border-t border-line/80 px-2 py-1.5">
+                        {items.map((requirement) => (
+                          <li key={requirement.id}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditing(requirement);
+                                setEditorOpen(true);
+                              }}
+                              className="flex w-full items-start gap-2.5 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-parchment/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-olive/30"
+                            >
+                              <span
+                                className={[
+                                  "mt-1 h-1.5 w-1.5 shrink-0 rounded-full",
+                                  requirement.importance === "must"
+                                    ? "bg-olive"
+                                    : requirement.importance === "nice"
+                                      ? "bg-gold"
+                                      : requirement.importance === "dealbreaker"
+                                        ? "bg-clay"
+                                        : "bg-muted/40",
+                                ].join(" ")}
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span
+                                  className={[
+                                    "block text-[12px] leading-4",
+                                    requirement.configured
+                                      ? "text-ink/90"
+                                      : "text-muted",
+                                  ].join(" ")}
+                                >
+                                  {translateRequirementName(
+                                    requirement.name,
+                                    locale,
+                                  )}
+                                </span>
+                                <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                                  <span className="text-[9.5px] tabular-nums text-muted">
+                                    {expectedLabel(requirement, locale, t)}
+                                  </span>
+                                  <ImportanceBadge
+                                    importance={requirement.importance}
+                                  />
+                                  {!requirement.configured && (
+                                    <span className="rounded-full border border-line bg-parchment px-1.5 py-0.5 text-[8px] uppercase tracking-[0.08em] text-muted">
+                                      {t("wishlist.draft")}
+                                    </span>
+                                  )}
+                                </span>
+                              </span>
+                              <ChevronRightIcon className="mt-1 h-3.5 w-3.5 shrink-0 text-muted/50" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="mt-5 rounded-[20px] border border-line bg-parchment/70 px-4 py-3.5">
+          <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted">
+            {t("wishlist.rules")}
+          </p>
+          <p className="mt-1.5 text-[11px] leading-5 text-muted">
+            {t("wishlist.rulesBody")}
+          </p>
+          <p className="mt-1.5 text-[10px] leading-4 text-muted">
+            {t("wishlist.importanceHint")}
+          </p>
+        </section>
 
         <button
           type="button"
@@ -294,61 +500,113 @@ export function WishlistScreen({
           </div>
         </button>
       </div>
-    </div>
-  );
-}
 
-function Checklist({
-  items,
-  onToggle,
-  title,
-  percent,
-}: {
-  items: WishlistItem[];
-  onToggle: (itemId: string) => void;
-  title: string;
-  percent: number;
-}) {
-  const { locale } = useI18n();
+      {editorOpen && (
+        <RequirementEditor
+          key={editing?.id ?? `new-${activeId}`}
+          open
+          wishlistId={activeId}
+          requirement={editing}
+          onClose={() => {
+            setEditorOpen(false);
+            setEditing(null);
+          }}
+        />
+      )}
 
-  return (
-    <div className="mt-5">
-      <div className="flex items-center gap-3">
-        <ProgressBar value={percent} />
-        <span className="shrink-0 text-[10px] uppercase tracking-[0.1em] text-muted">
-          {Math.round(percent)}%
-        </span>
-      </div>
-      <p className="mt-2 text-[11px] text-muted">{title}</p>
-
-      <div className="mt-4 overflow-hidden rounded-[20px] border border-line bg-white/50">
-        {items.map((item, index) => (
+      <Sheet
+        open={dialog === "new" || dialog === "rename"}
+        title={
+          dialog === "new" ? t("wishlist.new") : t("wishlist.rename")
+        }
+        onClose={() => setDialog(null)}
+        footer={
           <button
-            key={item.id}
-            type="button"
-            role="checkbox"
-            aria-checked={item.done}
-            onClick={() => onToggle(item.id)}
-            className={[
-              "flex w-full items-center gap-3 px-4 py-3 text-left text-[13px] transition-colors hover:bg-parchment/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-olive/30",
-              index > 0 ? "border-t border-line/70" : "",
-              item.done ? "text-muted line-through decoration-muted/40" : "text-ink",
-            ].join(" ")}
+            type="submit"
+            form="wishlist-name-form"
+            className="min-h-11 w-full rounded-full bg-olive px-4 text-[13px] font-medium text-cream transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40"
           >
-            <span
-              className={[
-                "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors",
-                item.done
-                  ? "border-olive bg-olive text-cream"
-                  : "border-line bg-cream text-transparent",
-              ].join(" ")}
-            >
-              <CheckIcon className="h-3 w-3" />
-            </span>
-            {translateWishlistText(item.label, locale)}
+            {dialog === "new" ? t("wishlist.create") : t("common.done")}
           </button>
-        ))}
-      </div>
+        }
+      >
+        <form
+          id="wishlist-name-form"
+          onSubmit={dialog === "new" ? submitNew : submitRename}
+          className="space-y-4"
+        >
+          <div>
+            <label
+              htmlFor="wishlist-name"
+              className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted"
+            >
+              {t("wishlist.title")}
+            </label>
+            <input
+              id="wishlist-name"
+              value={dialogName}
+              onChange={(event) => setDialogName(event.target.value)}
+              placeholder={t("wishlist.newPlaceholder")}
+              autoFocus
+              className="mt-2 w-full rounded-2xl border border-line bg-white/70 px-4 py-3 text-[13px] text-ink outline-none transition-colors focus:border-olive/35 focus:ring-2 focus:ring-olive/15"
+            />
+          </div>
+          {dialog === "new" && (
+            <div>
+              <label
+                htmlFor="wishlist-budget"
+                className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted"
+              >
+                {t("wishlist.budget")}{" "}
+                <span className="normal-case text-muted">
+                  {t("common.optional")}
+                </span>
+              </label>
+              <input
+                id="wishlist-budget"
+                value={dialogBudget}
+                onChange={(event) => setDialogBudget(event.target.value)}
+                inputMode="numeric"
+                placeholder={t("wishlist.budgetPlaceholder")}
+                className="mt-2 w-full rounded-2xl border border-line bg-white/70 px-4 py-3 text-[13px] tabular-nums text-ink outline-none transition-colors focus:border-olive/35 focus:ring-2 focus:ring-olive/15"
+              />
+            </div>
+          )}
+          {dialogError && (
+            <p role="alert" className="text-[11px] text-gold">
+              {dialogError}
+            </p>
+          )}
+        </form>
+      </Sheet>
+
+      <Sheet
+        open={dialog === "delete"}
+        title={t("wishlist.deleteTitle", { name: activeName })}
+        onClose={() => setDialog(null)}
+        footer={
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setDialog(null)}
+              className="min-h-11 flex-1 rounded-full border border-line bg-white/70 text-[12px] font-medium text-ink transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
+            >
+              {t("wishlist.keep")}
+            </button>
+            <button
+              type="button"
+              onClick={confirmDelete}
+              className="min-h-11 flex-1 rounded-full bg-clay text-[12px] font-medium text-cream transition-colors hover:bg-clay/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay/40"
+            >
+              {t("common.delete")}
+            </button>
+          </div>
+        }
+      >
+        <p className="text-[12px] leading-5 text-muted">
+          {t("wishlist.deleteBody")}
+        </p>
+      </Sheet>
     </div>
   );
 }
