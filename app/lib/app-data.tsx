@@ -10,6 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import type { User } from "@supabase/supabase-js";
 import {
   DEFAULT_BUDGET,
   DEFAULT_COMPARISON_NOTES,
@@ -167,6 +168,19 @@ type AppData = Snapshot & {
   ready: boolean;
   status: SyncStatus;
   configured: boolean;
+  user: User | null;
+  authReady: boolean;
+  accountSynced: boolean;
+  accountSyncError: boolean;
+  signIn: (
+    email: string,
+    password: string,
+  ) => Promise<{ ok: boolean; error?: string; confirmationRequired?: boolean }>;
+  signUp: (
+    email: string,
+    password: string,
+  ) => Promise<{ ok: boolean; error?: string; confirmationRequired?: boolean }>;
+  signOut: () => Promise<void>;
   v2Synced: boolean;
   saving: boolean;
   topMatch: Home;
@@ -548,6 +562,78 @@ function localSnapshotFromParsed(parsed: Record<string, unknown>): Snapshot {
     details: Object.fromEntries(detailsEntry.map((entry) => [entry.homeId, entry])),
     scenarios: scenariosRaw.length > 0 ? scenariosRaw : seeded.scenarios,
     evaluations: evaluationsRaw,
+  };
+}
+
+function accountSnapshot(snapshot: Snapshot) {
+  return {
+    version: 1,
+    profile: snapshot.profile,
+    wishlists: snapshot.wishlists,
+    requirements: snapshot.requirements,
+    details: snapshot.details,
+    scenarios: snapshot.scenarios,
+    evaluations: snapshot.evaluations,
+  };
+}
+
+function applyAccountSnapshot(
+  current: Snapshot,
+  payload: unknown,
+): Snapshot {
+  if (!isObject(payload)) return current;
+  const wishlists = Array.isArray(payload.wishlists)
+    ? payload.wishlists
+        .map(normalizeWishlist)
+        .filter((entry): entry is Wishlist => Boolean(entry))
+    : [];
+  if (wishlists.length === 0) return current;
+
+  const activeId =
+    wishlists.find((wishlist) => wishlist.isActive)?.id ?? wishlists[0].id;
+  const wishlistIds = new Set(wishlists.map((wishlist) => wishlist.id));
+  const requirements = Array.isArray(payload.requirements)
+    ? payload.requirements
+        .map(normalizeRequirement)
+        .filter(
+          (entry): entry is WishlistRequirement =>
+            entry !== null && wishlistIds.has(entry.wishlistId),
+        )
+    : current.requirements.filter((requirement) =>
+        wishlistIds.has(requirement.wishlistId),
+      );
+  const details = isObject(payload.details)
+    ? Object.fromEntries(
+        Object.values(payload.details)
+          .map(normalizeDetails)
+          .filter((entry): entry is PropertyDetails => Boolean(entry))
+          .map((entry) => [entry.homeId, entry]),
+      )
+    : current.details;
+  const scenarios = Array.isArray(payload.scenarios)
+    ? payload.scenarios
+        .map(normalizeScenario)
+        .filter((entry): entry is BudgetScenario => Boolean(entry))
+    : current.scenarios;
+  const evaluations = Array.isArray(payload.evaluations)
+    ? payload.evaluations
+        .map(normalizeEvaluation)
+        .filter((entry): entry is PropertyEvaluation => Boolean(entry))
+    : current.evaluations;
+
+  return {
+    ...current,
+    profile: isObject(payload.profile)
+      ? { ...current.profile, ...(payload.profile as Partial<UserProfile>) }
+      : current.profile,
+    wishlists: wishlists.map((wishlist) => ({
+      ...wishlist,
+      isActive: wishlist.id === activeId,
+    })),
+    requirements,
+    details,
+    scenarios,
+    evaluations,
   };
 }
 
@@ -1031,8 +1117,78 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [evaluationsSynced, setEvaluationsSynced] = useState(false);
   const [pendingWrites, setPendingWrites] = useState(0);
   const [ready, setReady] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(!hasSupabaseConfig);
+  const [accountReady, setAccountReady] = useState(false);
+  const [accountSynced, setAccountSynced] = useState(false);
+  const [accountSyncError, setAccountSyncError] = useState(false);
   const budgetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dataRef = useRef(data);
+  const accountReadyFor = useRef<string | null>(null);
   const ownerId = data.profile.id || DEFAULT_OWNER_ID;
+  const userId = user?.id ?? null;
+
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    let cancelled = false;
+    void supabase.auth.getSession().then(({ data: session }) => {
+      if (cancelled) return;
+      setUser(session.session?.user ?? null);
+      setAuthReady(true);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (cancelled) return;
+        setUser(session?.user ?? null);
+        setAuthReady(true);
+        if (!session?.user) {
+          accountReadyFor.current = null;
+          setAccountReady(false);
+          setAccountSynced(false);
+          setAccountSyncError(false);
+        }
+      },
+    );
+    return () => {
+      cancelled = true;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    if (!supabase) {
+      return { ok: false, error: "Account sync is not configured." };
+    }
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }, []);
+
+  const signUp = useCallback(async (email: string, password: string) => {
+    if (!supabase) {
+      return { ok: false, error: "Account sync is not configured." };
+    }
+    const { data: created, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+    });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, confirmationRequired: !created.session };
+  }, []);
+
+  const signOut = useCallback(async () => {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setAccountReady(false);
+    setAccountSynced(false);
+    setAccountSyncError(false);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1323,6 +1479,91 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, []);
+
+  // Account sync: one private snapshot row per signed-in user. It is loaded
+  // after the normal device/shared load so cloud data wins on a new device.
+  useEffect(() => {
+    if (!supabase) return;
+    if (!userId || !ready) return;
+
+    let cancelled = false;
+    accountReadyFor.current = null;
+
+    void (async () => {
+      try {
+        const { data: row, error } = await supabase!
+          .from("account_snapshots")
+          .select("data")
+          .eq("owner_id", userId)
+          .maybeSingle();
+        if (error) throw error;
+        if (cancelled) return;
+
+        if (row?.data) {
+          setData((current) => applyAccountSnapshot(current, row.data));
+        } else {
+          const { error: seedError } = await supabase!
+            .from("account_snapshots")
+            .upsert(
+              {
+                owner_id: userId,
+                data: accountSnapshot(dataRef.current),
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "owner_id" },
+            );
+          if (seedError) throw seedError;
+        }
+        if (cancelled) return;
+        accountReadyFor.current = userId;
+        setAccountSynced(true);
+        setAccountSyncError(false);
+        setAccountReady(true);
+      } catch (error) {
+        if (cancelled) return;
+        console.warn(
+          "Account snapshot sync unavailable. Run supabase/migrations/0004_account_snapshots.sql.",
+          error,
+        );
+        accountReadyFor.current = null;
+        setAccountSynced(false);
+        setAccountSyncError(true);
+        setAccountReady(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, userId]);
+
+  useEffect(() => {
+    if (!supabase || !userId || !ready || !accountReady) return;
+    if (accountReadyFor.current !== userId) return;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const { error } = await supabase!
+          .from("account_snapshots")
+          .upsert(
+            {
+              owner_id: userId,
+              data: accountSnapshot(data),
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "owner_id" },
+          );
+        if (error) {
+          console.warn("Account snapshot save failed:", error);
+          setAccountSynced(false);
+          setAccountSyncError(true);
+        } else {
+          setAccountSynced(true);
+          setAccountSyncError(false);
+        }
+      })();
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [accountReady, data, ready, userId]);
 
   // Local mirror keeps device-only mode working across reloads, and protects
   // V2 data when the optional V2 tables have not been created yet.
@@ -2702,6 +2943,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       ready,
       status,
       configured: hasSupabaseConfig,
+      user,
+      authReady,
+      accountSynced,
+      accountSyncError,
+      signIn,
+      signUp,
+      signOut,
       v2Synced,
       saving: pendingWrites > 0,
       topMatch,
@@ -2795,6 +3043,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     data,
     ready,
     status,
+    user,
+    authReady,
+    accountSynced,
+    accountSyncError,
+    signIn,
+    signUp,
+    signOut,
     v2Synced,
     evaluationsSynced,
     pendingWrites,

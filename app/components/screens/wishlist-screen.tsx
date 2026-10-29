@@ -227,6 +227,8 @@ export function WishlistScreen({
     updateWishlistBudget,
     v2Synced,
     evaluationsSynced,
+    accountSynced,
+    accountSyncError,
     bulkSetImportance,
     bulkRemoveRequirements,
     restoreRequirements,
@@ -322,17 +324,23 @@ export function WishlistScreen({
           ? t("wishlist.myDealbreakers")
           : t("wishlist.allRequirements");
 
-  const savedTo = v2Synced
-    ? evaluationsSynced
-      ? t("wishlist.storageAccount")
-      : t("wishlist.storageShared")
-    : t("wishlist.storageDevice");
+  const savedTo = accountSynced
+    ? t("wishlist.storageAccount")
+    : v2Synced
+      ? evaluationsSynced
+        ? t("wishlist.storageAccount")
+        : t("wishlist.storageShared")
+      : t("wishlist.storageDevice");
 
-  const storageStatus = !v2Synced
-    ? t("wishlist.storageStatusDevice")
-    : evaluationsSynced
-      ? t("wishlist.storageStatusAccount")
-      : t("wishlist.storageStatusShared");
+  const storageStatus = accountSynced
+    ? t("wishlist.storageStatusAccount")
+    : accountSyncError
+      ? t("wishlist.storageStatusError")
+      : !v2Synced
+        ? t("wishlist.storageStatusDevice")
+        : evaluationsSynced
+          ? t("wishlist.storageStatusAccount")
+          : t("wishlist.storageStatusShared");
 
   const bulkImportanceActions = (
     [

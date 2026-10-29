@@ -12,7 +12,11 @@ const publicKey =
 export const supabase: SupabaseClient | null =
   url && publicKey
     ? createClient(url, publicKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
+        auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
       })
     : null;
 

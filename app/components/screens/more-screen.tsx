@@ -1,6 +1,6 @@
 "use client";
 
-import type { ComponentType, SVGProps } from "react";
+import { useState, type ComponentType, type SVGProps } from "react";
 import { useAppData } from "../../lib/app-data";
 import { translateWishlistName, useI18n } from "../../lib/i18n";
 import {
@@ -45,9 +45,46 @@ export function MoreScreen({
     evaluationsSynced,
     activeWishlist,
     wishlistProgress,
+    configured,
+    user,
+    authReady,
+    accountSynced,
+    accountSyncError,
+    signIn,
+    signUp,
+    signOut,
   } = useAppData();
   const { t, locale, setLocale } = useI18n();
   const topScored = topMatches[0];
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authMessage, setAuthMessage] = useState("");
+
+  async function submitAccount(mode: "signin" | "signup") {
+    if (authBusy) return;
+    if (!email.trim() || !password) {
+      setAuthMessage(t("more.accountFieldsRequired"));
+      return;
+    }
+    setAuthBusy(true);
+    setAuthMessage("");
+    const result =
+      mode === "signin"
+        ? await signIn(email, password)
+        : await signUp(email, password);
+    setAuthBusy(false);
+    if (!result.ok) {
+      setAuthMessage(result.error ?? t("more.accountError"));
+      return;
+    }
+    if (result.confirmationRequired) {
+      setAuthMessage(t("more.accountConfirmation"));
+      return;
+    }
+    setPassword("");
+    setAuthMessage(t("more.accountSynced"));
+  }
 
   const searchRows: Row[] = [
     {
@@ -174,6 +211,120 @@ export function MoreScreen({
           </div>
         </div>
 
+        <section className="mt-4 rounded-[20px] border border-line bg-white/50 px-4 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted">
+              {t("more.account")}
+            </p>
+            <span
+              aria-hidden="true"
+              className={[
+                "h-1.5 w-1.5 rounded-full",
+                accountSynced
+                  ? "bg-olive"
+                  : accountSyncError
+                    ? "bg-gold"
+                    : "bg-muted/40",
+              ].join(" ")}
+            />
+          </div>
+
+          {user ? (
+            <>
+              <p className="mt-2 text-[11px] font-medium text-ink">
+                {t("more.accountSignedInAs", { email: user.email ?? "" })}
+              </p>
+              <p className="mt-1 text-[10px] leading-4 text-muted">
+                {accountSynced
+                  ? t("more.accountSynced")
+                  : accountSyncError
+                    ? t("more.accountError")
+                    : t("more.accountConnecting")}
+              </p>
+              <button
+                type="button"
+                onClick={() => void signOut()}
+                className="mt-2.5 min-h-9 rounded-full border border-line bg-white/70 px-3 text-[10px] font-medium text-ink"
+              >
+                {t("more.signOut")}
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-[10px] leading-4 text-muted">
+                {t("more.accountHint")}
+              </p>
+              {!configured ? (
+                <p className="mt-2 text-[10px] text-gold">
+                  {t("more.accountUnavailable")}
+                </p>
+              ) : !authReady ? (
+                <p className="mt-2 text-[10px] text-muted">
+                  {t("more.accountConnecting")}
+                </p>
+              ) : (
+                <form
+                  className="mt-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void submitAccount("signin");
+                  }}
+                >
+                  <label htmlFor="account-email" className="sr-only">
+                    {t("more.email")}
+                  </label>
+                  <input
+                    id="account-email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder={t("more.email")}
+                    className="w-full rounded-xl border border-line bg-white/75 px-3 py-2.5 text-[11.5px] text-ink outline-none placeholder:text-muted/50 focus:border-olive/35 focus:ring-2 focus:ring-olive/15"
+                  />
+                  <label htmlFor="account-password" className="sr-only">
+                    {t("more.password")}
+                  </label>
+                  <input
+                    id="account-password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder={t("more.password")}
+                    className="mt-2 w-full rounded-xl border border-line bg-white/75 px-3 py-2.5 text-[11.5px] text-ink outline-none placeholder:text-muted/50 focus:border-olive/35 focus:ring-2 focus:ring-olive/15"
+                  />
+                  <p className="mt-1.5 text-[9px] text-muted">
+                    {t("more.accountPasswordHint")}
+                  </p>
+                  <div className="mt-2.5 flex flex-wrap gap-2">
+                    <button
+                      type="submit"
+                      disabled={authBusy}
+                      className="min-h-9 rounded-full bg-olive px-3 text-[10px] font-medium text-cream disabled:opacity-50"
+                    >
+                      {t("more.signIn")}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={authBusy}
+                      onClick={() => void submitAccount("signup")}
+                      className="min-h-9 rounded-full border border-line bg-white/70 px-3 text-[10px] font-medium text-ink disabled:opacity-50"
+                    >
+                      {t("more.createAccount")}
+                    </button>
+                  </div>
+                </form>
+              )}
+              {authMessage && (
+                <p role="status" className="mt-2 text-[10px] leading-4 text-muted">
+                  {authMessage}
+                </p>
+              )}
+            </>
+          )}
+        </section>
+
         <div className="mt-4 rounded-[24px] bg-olive p-5 text-cream">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[10px] uppercase tracking-[0.16em] text-cream/80">
@@ -224,22 +375,30 @@ export function MoreScreen({
               aria-hidden="true"
               className={[
                 "h-1.5 w-1.5 rounded-full",
-                status === "synced"
+                accountSynced
                   ? "bg-cream/80"
-                  : status === "local"
+                  : accountSyncError
                     ? "bg-gold"
-                    : "bg-cream/30",
+                    : status === "synced"
+                      ? "bg-cream/80"
+                      : status === "local"
+                        ? "bg-gold"
+                        : "bg-cream/30",
               ].join(" ")}
             />
-            {status === "synced"
-              ? v2Synced
-                ? evaluationsSynced
-                  ? t("more.synced")
-                  : t("more.evaluationsLocal")
-                : t("more.v2Local")
-              : status === "local"
-                ? t("more.local")
-                : t("more.connecting")}
+            {accountSynced
+              ? t("more.accountSynced")
+              : accountSyncError
+                ? t("more.accountError")
+                : status === "synced"
+                  ? v2Synced
+                    ? evaluationsSynced
+                      ? t("more.synced")
+                      : t("more.evaluationsLocal")
+                    : t("more.v2Local")
+                  : status === "local"
+                    ? t("more.local")
+                    : t("more.connecting")}
           </p>
         </div>
 

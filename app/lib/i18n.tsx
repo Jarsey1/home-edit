@@ -209,6 +209,7 @@ export const en = {
   "compare.enterValue": "Enter a number",
   "compare.factSavedDevice": "Saved on this device.",
   "compare.factSavedShared": "Saved to the shared list.",
+  "compare.factSavedAccount": "Saved. Syncing to your account.",
   "compare.factSaveError": "Could not save this value. Please try again.",
   "compare.requiredCondition": "Required",
   "compare.knownValue": "Known",
@@ -310,6 +311,26 @@ export const en = {
   "more.scoringDetail": "Must-have 5 · Nice-to-have 2 · Dealbreakers filter",
   "more.scoringWeights": "Default weights",
   "more.language": "Language",
+  "more.account": "Account",
+  "more.accountHint":
+    "Sign in to sync your wishlist, property details and evaluations across devices.",
+  "more.email": "Email",
+  "more.password": "Password",
+  "more.signIn": "Sign in",
+  "more.createAccount": "Create account",
+  "more.signOut": "Sign out",
+  "more.accountSynced": "Synced to your account",
+  "more.accountConnecting": "Connecting to your account…",
+  "more.accountLocal": "Not signed in. Data stays on this device.",
+  "more.accountError":
+    "Unable to sync. Changes are still stored on this device.",
+  "more.accountUnavailable":
+    "Account sync is not configured for this build.",
+  "more.accountConfirmation":
+    "Check your email to confirm your account, then sign in.",
+  "more.accountSignedInAs": "Signed in as {email}",
+  "more.accountPasswordHint": "Use at least 6 characters.",
+  "more.accountFieldsRequired": "Enter your email and password.",
   "more.languageHint": "Choose the language for the app.",
   "more.english": "English",
   "more.spanish": "Español",
@@ -424,13 +445,15 @@ export const en = {
   "wishlist.progressDetail": "{done} of {total} preferences configured",
   "wishlist.storageDevice": "Saved to this device only.",
   "wishlist.storageShared": "Saved to the shared test list.",
-  "wishlist.storageAccount": "Saved to your account.",
+  "wishlist.storageAccount": "Saved. Syncing to your account.",
   "wishlist.storageStatusDevice":
     "Stored on this device. Account sync is not connected.",
   "wishlist.storageStatusShared":
     "Wishlists synced to the shared test list · evaluations stay on this device.",
   "wishlist.storageStatusAccount":
-    "Wishlists and evaluations saved to your account.",
+    "Wishlists, property details and evaluations sync to your account.",
+  "wishlist.storageStatusError":
+    "Unable to sync to your account. Changes are still stored on this device.",
   "wishlist.progressNote":
     "Setup progress is separate from property match scores.",
   "wishlist.addRequirement": "Add requirement",
@@ -744,6 +767,7 @@ export const en = {
   "edit.savedShared": "Saved to shared list",
   "edit.savedLocal": "Saved on this device only. Cloud sync did not complete.",
   "edit.savedPartial": "Home saved to shared list. Photos and private details stay on this device.",
+  "edit.savedAccount": "Saved. Syncing to your account.",
   "edit.suspiciousTitle": "Is this price correct?",
   "edit.suspiciousBody":
     "The price you entered is unusually low. Save it anyway if this is right.",
@@ -1116,6 +1140,7 @@ const es: Record<TranslationKey, string> = {
   "compare.enterValue": "Escribe un número",
   "compare.factSavedDevice": "Guardado en este dispositivo.",
   "compare.factSavedShared": "Guardado en la lista compartida.",
+  "compare.factSavedAccount": "Guardado. Sincronizando con tu cuenta.",
   "compare.factSaveError": "No se pudo guardar este valor. Inténtalo de nuevo.",
   "compare.requiredCondition": "Requerido",
   "compare.knownValue": "Conocido",
@@ -1221,6 +1246,26 @@ const es: Record<TranslationKey, string> = {
   "more.scoringDetail": "Imprescindible 5 · Deseo 2 · Filtros eliminatorios",
   "more.scoringWeights": "Pesos predeterminados",
   "more.language": "Idioma",
+  "more.account": "Cuenta",
+  "more.accountHint":
+    "Inicia sesión para sincronizar tu lista, los datos de las casas y las evaluaciones entre dispositivos.",
+  "more.email": "Correo electrónico",
+  "more.password": "Contraseña",
+  "more.signIn": "Iniciar sesión",
+  "more.createAccount": "Crear cuenta",
+  "more.signOut": "Cerrar sesión",
+  "more.accountSynced": "Sincronizado con tu cuenta",
+  "more.accountConnecting": "Conectando con tu cuenta…",
+  "more.accountLocal": "Sin sesión. Los datos quedan en este dispositivo.",
+  "more.accountError":
+    "No se pudo sincronizar. Los cambios siguen guardados en este dispositivo.",
+  "more.accountUnavailable":
+    "La sincronización con la cuenta no está configurada en esta versión.",
+  "more.accountConfirmation":
+    "Revisa tu correo para confirmar la cuenta y luego inicia sesión.",
+  "more.accountSignedInAs": "Sesión iniciada como {email}",
+  "more.accountPasswordHint": "Usa al menos 6 caracteres.",
+  "more.accountFieldsRequired": "Escribe tu correo y contraseña.",
   "more.languageHint": "Elige el idioma de la app.",
   "more.english": "English",
   "more.spanish": "Español",
@@ -1334,13 +1379,15 @@ const es: Record<TranslationKey, string> = {
   "wishlist.progressDetail": "{done} de {total} preferencias configuradas",
   "wishlist.storageDevice": "Guardado solo en este dispositivo.",
   "wishlist.storageShared": "Guardado en la lista de prueba compartida.",
-  "wishlist.storageAccount": "Guardado en tu cuenta.",
+  "wishlist.storageAccount": "Guardado. Sincronizando con tu cuenta.",
   "wishlist.storageStatusDevice":
     "Guardado en este dispositivo. La sincronización con tu cuenta no está conectada.",
   "wishlist.storageStatusShared":
     "Listas sincronizadas con la lista de prueba compartida · las evaluaciones quedan en este dispositivo.",
   "wishlist.storageStatusAccount":
-    "Listas y evaluaciones guardadas en tu cuenta.",
+    "Las listas, los datos de las casas y las evaluaciones se sincronizan con tu cuenta.",
+  "wishlist.storageStatusError":
+    "No se pudo sincronizar con tu cuenta. Los cambios siguen guardados en este dispositivo.",
   "wishlist.progressNote":
     "El progreso de configuración es distinto de la compatibilidad de una casa.",
   "wishlist.addRequirement": "Agregar preferencia",
@@ -1658,6 +1705,7 @@ const es: Record<TranslationKey, string> = {
   "edit.savedShared": "Guardado en la lista compartida",
   "edit.savedLocal": "Guardado solo en este dispositivo. La sincronización no se completó.",
   "edit.savedPartial": "La casa se guardó en la lista compartida. Las fotos y notas privadas quedan en este dispositivo.",
+  "edit.savedAccount": "Guardado. Sincronizando con tu cuenta.",
   "edit.suspiciousTitle": "¿El precio es correcto?",
   "edit.suspiciousBody":
     "El precio que ingresaste es inusualmente bajo. Guárdalo si es correcto.",

@@ -56,7 +56,7 @@ export function EditPropertyScreen({
   onBack: () => void;
   focusFeatureKey?: string | null;
 }) {
-  const { updateHome, activeRequirements } = useAppData();
+  const { updateHome, activeRequirements, accountSynced } = useAppData();
   const { t, locale } = useI18n();
 
   const [address, setAddress] = useState(home.address);
@@ -96,7 +96,7 @@ export function EditPropertyScreen({
     return initial;
   });
   const [saveResult, setSaveResult] = useState<
-    "idle" | "saving" | "shared" | "local" | "partial"
+    "idle" | "saving" | "shared" | "local" | "partial" | "account"
   >("idle");
   const [confirmSuspicious, setConfirmSuspicious] = useState(false);
 
@@ -236,6 +236,11 @@ export function EditPropertyScreen({
         : "none",
     });
     setConfirmSuspicious(false);
+    if (accountSynced) {
+      setSaveResult("account");
+      window.setTimeout(onBack, 900);
+      return;
+    }
     if (!result.home) {
       setSaveResult("local");
       return;
@@ -720,7 +725,9 @@ export function EditPropertyScreen({
                 ? t("edit.savedLocal")
                 : saveResult === "partial"
                   ? t("edit.savedPartial")
-                  : t("edit.save")}
+                  : saveResult === "account"
+                    ? t("edit.savedAccount")
+                    : t("edit.save")}
         </button>
         {saveResult === "local" && (
           <p className="mt-2 text-center text-[10px] leading-4 text-clay">

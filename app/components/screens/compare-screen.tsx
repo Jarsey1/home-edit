@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useMemo,
   useState,
   type CSSProperties,
@@ -54,6 +55,22 @@ import {
   TrashIcon,
   XIcon,
 } from "../icons";
+
+const COMPARISON_STORAGE_KEY = "next-home-edit:comparison:v1";
+
+function storedComparisonIds(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(COMPARISON_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 type SectionId = "match" | "details" | "financial" | "neighborhood" | "community";
 
@@ -249,11 +266,18 @@ export function CompareScreen({
     activateRequirements,
     saveHomeFact,
     ready,
+    accountSynced,
   } = useAppData();
   const { t, locale } = useI18n();
-  const [selectedIds, setSelectedIds] = useState<string[]>(() =>
-    defaultComparisonIds(homes, 2),
-  );
+  const [selectedIds, setSelectedIds] = useState<string[]>(() => {
+    const stored = storedComparisonIds();
+    // Keep raw stored ids until the saved homes are available. Normalizing
+    // against the initial demo snapshot would discard a valid third selection
+    // before Supabase finishes loading.
+    return stored.length > 0
+      ? stored
+      : defaultComparisonIds(homes, 2);
+  });
   const [selectionMessage, setSelectionMessage] = useState("");
   const [addingNote, setAddingNote] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
@@ -273,6 +297,17 @@ export function CompareScreen({
     neighborhood: true,
     community: true,
   });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        COMPARISON_STORAGE_KEY,
+        JSON.stringify(selectedIds),
+      );
+    } catch {
+      // Selection still works in memory if device storage is unavailable.
+    }
+  }, [selectedIds]);
 
   const selected = useMemo(
     () => selectedHomes(homes, selectedIds, 2),
@@ -1271,6 +1306,7 @@ export function CompareScreen({
             ? saveHomeFact(missingInfoFor, featureKey, value)
             : Promise.resolve({ ok: false, shared: false })
         }
+        accountSynced={accountSynced}
         onEditProperty={(homeId, featureKey) => {
           setMissingInfoFor(null);
           onEditProperty(homeId, featureKey);
@@ -1462,6 +1498,7 @@ function MissingInfoSheet({
   onEditRequirement,
   onActivate,
   onSaveFact,
+  accountSynced,
   onEvaluate,
 }: {
   open: boolean;
@@ -1481,6 +1518,7 @@ function MissingInfoSheet({
     featureKey: string,
     value: FactValue,
   ) => Promise<{ ok: boolean; shared: boolean }>;
+  accountSynced: boolean;
   onEvaluate: (homeId: string) => void;
 }) {
   const { t, locale } = useI18n();
@@ -1545,9 +1583,11 @@ function MissingInfoSheet({
     const result = await onSaveFact(featureKey, value);
     setFactNotice(
       result.ok
-        ? result.shared
-          ? t("compare.factSavedShared")
-          : t("compare.factSavedDevice")
+        ? accountSynced
+          ? t("compare.factSavedAccount")
+          : result.shared
+            ? t("compare.factSavedShared")
+            : t("compare.factSavedDevice")
         : t("compare.factSaveError"),
     );
     return result.ok;
