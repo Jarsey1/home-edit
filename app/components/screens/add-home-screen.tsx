@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useId,
   useRef,
@@ -89,6 +90,7 @@ export function AddHomeScreen({
   const [loading, setLoading] = useState(false);
   const [searchFailed, setSearchFailed] = useState(false);
   const [open, setOpen] = useState(false);
+  const [dropUp, setDropUp] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -127,6 +129,38 @@ export function AddHomeScreen({
         .filter(Boolean)
         .join(" · ")
     : "";
+
+  const updateDropDirection = useCallback(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    const rect = input.getBoundingClientRect();
+    const viewport = window.visualViewport;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportHeight = viewport?.height ?? window.innerHeight;
+    const spaceBelow = viewportTop + viewportHeight - rect.bottom;
+    const spaceAbove = rect.top - viewportTop;
+    setDropUp(spaceBelow < 240 && spaceAbove > spaceBelow);
+  }, []);
+
+  useEffect(() => {
+    if (!showList) return;
+    updateDropDirection();
+  }, [showList, updateDropDirection]);
+
+  useEffect(() => {
+    const update = () => updateDropDirection();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, { passive: true });
+    const viewport = window.visualViewport;
+    viewport?.addEventListener("resize", update);
+    viewport?.addEventListener("scroll", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update);
+      viewport?.removeEventListener("resize", update);
+      viewport?.removeEventListener("scroll", update);
+    };
+  }, [updateDropDirection]);
 
   // Debounced address lookup. Each keystroke cancels the previous request.
   useEffect(() => {
@@ -305,6 +339,7 @@ export function AddHomeScreen({
     setActiveIndex(-1);
     setOpen(false);
     setError(null);
+    inputRef.current?.focus();
   }
 
   function changeCity(value: string) {
@@ -502,7 +537,10 @@ export function AddHomeScreen({
                 id={listId}
                 role="listbox"
                 aria-label="Address suggestions"
-                className="absolute inset-x-0 top-full z-30 mt-2 max-h-64 overflow-y-auto rounded-2xl border border-line bg-cream py-1.5 shadow-[0_20px_45px_-20px_rgba(36,34,31,0.45)]"
+                className={[
+                  "absolute inset-x-0 z-30 max-h-64 overflow-y-auto rounded-2xl border border-line bg-cream py-1.5 shadow-[0_20px_45px_-20px_rgba(36,34,31,0.45)]",
+                  dropUp ? "bottom-full mb-2" : "top-full mt-2",
+                ].join(" ")}
               >
                 {suggestions.map((suggestion, index) => (
                   <li
