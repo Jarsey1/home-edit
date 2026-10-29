@@ -717,7 +717,7 @@ export function AddHomeScreen({
               {lookupState === "loading" &&
                 "Searching public records for this address…"}
               {lookupState === "found" &&
-                "Beds, baths and square footage were prefilled where available. Double-check before saving."}
+                "Beds, baths, square footage and lot were prefilled where available. Double-check before saving."}
               {lookupState === "empty" &&
                 "No public records found for this address. You can still fill in the details manually."}
               {lookupState === "error" &&

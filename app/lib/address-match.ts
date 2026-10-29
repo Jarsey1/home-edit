@@ -46,6 +46,8 @@ export function streetTokens(address: string) {
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
     .filter(Boolean)
+    // Public records abbreviate ordinals: "108th Street" becomes "108 ST".
+    .map((token) => token.replace(/^(\d+)(st|nd|rd|th)$/, "$1"))
     .map((token) => SUFFIX_ALIASES[token] ?? DIRECTION_ALIASES[token] ?? token);
 }
 

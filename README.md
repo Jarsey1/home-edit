@@ -9,8 +9,8 @@ Built with Next.js (App Router), React, Tailwind CSS and Supabase.
 
 - Node.js 20+
 - A Supabase project (free tier is fine)
-- Optional: a [RentCast](https://app.rentcast.io/app/api) API key for prefilled
-  property details
+- Optional: a [RentCast](https://app.rentcast.io/app/api) API key if you want a
+  nationwide fallback outside Miami-Dade County
 
 ## Setup
 
@@ -29,13 +29,18 @@ Built with Next.js (App Router), React, Tailwind CSS and Supabase.
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-or-anon-key
-   RENTCAST_API_KEY=your-rentcast-api-key
    ```
 
    Find the Supabase values in **Project Settings → API**. The
    publishable/anon key is designed to be public; access is controlled by
-   row-level security. `RENTCAST_API_KEY` is optional — leave it blank to keep
-   the app on manual entry.
+   row-level security.
+
+   Property details work without any other key. Miami-Dade County publishes
+   its parcel roll as an open ArcGIS layer, so beds, baths, square footage, lot
+   size and year built are looked up for free. If you also set
+   `RENTCAST_API_KEY`, it is used only as a fallback when the free records have
+   no match (useful outside Miami-Dade). Leave it out to stay entirely on free
+   public records.
 
 3. Create the tables. In Supabase, open **SQL Editor → New query**, paste the
    contents of [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql),
@@ -85,18 +90,24 @@ the service is unreachable, manual address entry still works.
 
 ### Prefilled property details
 
-If `RENTCAST_API_KEY` is set, picking an address suggestion also asks
-`/api/property-lookup` for public records. Beds, baths and square footage are
-filled in only when those fields are still empty, and you can edit or clear them
-before saving. The details card also shows year built, lot size and last sale
-price when available. A **Look up details** button does the same for an address
-you typed manually.
+Picking an address suggestion (or tapping **Look up details** for an address
+you typed) asks `/api/property-lookup` for public records. Beds, baths, square
+footage, lot size and year built are shown in a small facts table and filled in
+only when those fields are still empty. You can edit or clear them before
+saving. The price field is **never** prefilled.
 
-RentCast data comes from public records, so it can lag or be incomplete and
-coverage varies by county. The last sale price is **not** the current asking
-price, so the price field is never prefilled. Lookups are cached for 10 minutes
-and fail quietly to manual entry when the key is missing or the service is
-unavailable. The free plan includes 50 lookups per month.
+The primary source is the free
+[Miami-Dade County parcel layer](https://gisweb.miamidade.gov/arcgis/rest/services/MD_LandInformation/MapServer/26),
+which needs no key or subscription. It covers Miami-Dade addresses and supplies
+bedrooms, bathrooms, living area, lot size and year built. Records can lag new
+construction and the last sale price is not the current asking price.
+
+Candidates are matched against the exact house number, street name and suffix,
+so a nearby `108th Terrace` can never fill in `108th Street`. Lookups are cached
+for 10 minutes. If `RENTCAST_API_KEY` is set, RentCast is tried only when the
+free county records have no match. Without a key (or with an inactive plan) the
+app simply reports that no public records were found and manual entry works as
+before.
 
 ## Working from another laptop
 
@@ -138,9 +149,10 @@ app/
     homes.ts                Home type, formatting, demo homes
     defaults.ts             starter data
     types.ts                persisted record types
+    miami-dade-parcels.ts   Miami-Dade County parcel lookup (no key)
   api/
     address-search/         Photon-backed address suggestions
-    property-lookup/        RentCast-backed public-record details
+    property-lookup/        free county public records + optional fallback
   components/
     dashboard.tsx
     screens/                all eight screens + Add Home

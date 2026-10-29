@@ -135,11 +135,11 @@ export function PropertyScreen({
               <div
                 key={spec.label}
                 className={[
-                  "px-2 text-center",
+                  "px-1 text-center",
                   index > 0 ? "border-l border-line/70" : "",
                 ].join(" ")}
               >
-                <p className="font-serif text-[19px] leading-none text-ink">
+                <p className="font-serif text-[17px] leading-none text-ink">
                   {spec.value}
                 </p>
                 <p className="mt-1.5 text-[9px] uppercase tracking-[0.12em] text-muted">
