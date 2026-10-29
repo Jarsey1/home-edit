@@ -1,10 +1,16 @@
+"use client";
+
+import { useI18n } from "../lib/i18n";
+
 export function HouseIllustration({ className }: { className?: string }) {
+  const { t } = useI18n();
+
   return (
     <svg
       viewBox="0 0 420 260"
       preserveAspectRatio="xMidYMid slice"
       role="img"
-      aria-label="Illustration of a modern gated home with palms and a pool"
+      aria-label={t("common.illustrationAria")}
       className={className}
     >
       <defs>

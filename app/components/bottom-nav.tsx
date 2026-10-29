@@ -1,6 +1,7 @@
 "use client";
 
 import type { ComponentType, SVGProps } from "react";
+import { useI18n, type TranslationKey } from "../lib/i18n";
 import {
   BudgetIcon,
   HeartIcon,
@@ -13,16 +14,16 @@ export type TabId = "home" | "homes" | "wishlist" | "budget" | "more";
 
 type Tab = {
   id: TabId;
-  label: string;
+  labelKey: TranslationKey;
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
 };
 
 const TABS: Tab[] = [
-  { id: "home", label: "Home", Icon: HomeIcon },
-  { id: "homes", label: "Homes", Icon: HomesIcon },
-  { id: "wishlist", label: "Wishlist", Icon: HeartIcon },
-  { id: "budget", label: "Budget", Icon: BudgetIcon },
-  { id: "more", label: "More", Icon: MoreIcon },
+  { id: "home", labelKey: "nav.home", Icon: HomeIcon },
+  { id: "homes", labelKey: "nav.homes", Icon: HomesIcon },
+  { id: "wishlist", labelKey: "nav.wishlist", Icon: HeartIcon },
+  { id: "budget", labelKey: "nav.budget", Icon: BudgetIcon },
+  { id: "more", labelKey: "nav.more", Icon: MoreIcon },
 ];
 
 export function BottomNav({
@@ -32,13 +33,15 @@ export function BottomNav({
   active: TabId;
   onChange: (tab: TabId) => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <nav
-      aria-label="Primary"
+      aria-label={t("common.primary")}
       className="sticky bottom-0 z-30 mt-auto border-t border-line/90 bg-cream/85 backdrop-blur-xl sm:rounded-b-[40px]"
     >
       <div className="flex items-stretch justify-between gap-1 px-3 pb-[max(0.55rem,env(safe-area-inset-bottom))] pt-2">
-        {TABS.map(({ id, label, Icon }) => {
+        {TABS.map(({ id, labelKey, Icon }) => {
           const isActive = active === id;
           return (
             <button
@@ -66,7 +69,7 @@ export function BottomNav({
                     : "text-muted group-hover:text-ink",
                 ].join(" ")}
               >
-                {label}
+                {t(labelKey)}
               </span>
             </button>
           );

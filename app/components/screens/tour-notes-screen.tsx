@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useAppData } from "../../lib/app-data";
 import { formatPriceOrPending, type Home } from "../../lib/homes";
+import { useI18n, type TranslationKey } from "../../lib/i18n";
 import { BackButton } from "../back-button";
 import { HouseIllustration } from "../house-illustration";
 import {
@@ -12,12 +13,12 @@ import {
   TrashIcon,
 } from "../icons";
 
-const RATING_LABELS = [
-  "Not for us",
-  "Needs work",
-  "Worth a look",
-  "Strong contender",
-  "Loved it",
+const RATING_KEYS: TranslationKey[] = [
+  "tour.rating1",
+  "tour.rating2",
+  "tour.rating3",
+  "tour.rating4",
+  "tour.rating5",
 ];
 
 export function TourNotesScreen({
@@ -28,6 +29,7 @@ export function TourNotesScreen({
   onBack: () => void;
 }) {
   const { tourNotes, saveTourNote } = useAppData();
+  const { t, locale, number } = useI18n();
   const existing = tourNotes[home.id];
   const [rating, setRating] = useState(existing?.rating ?? 0);
   const [notes, setNotes] = useState(existing?.notes ?? "");
@@ -48,13 +50,13 @@ export function TourNotesScreen({
   return (
     <div className="flex flex-1 flex-col">
       <header className="flex items-start gap-3 px-6 pt-8">
-        <BackButton onClick={onBack} label="Go back" />
+        <BackButton onClick={onBack} label={t("common.goBack")} />
         <div>
           <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted">
-            Your impressions
+            {t("tour.eyebrow")}
           </p>
           <h1 className="mt-1 font-serif text-[31px] leading-none tracking-[-0.02em] text-ink">
-            Tour Notes
+            {t("tour.title")}
           </h1>
         </div>
       </header>
@@ -74,27 +76,33 @@ export function TourNotesScreen({
               {home.address}
             </p>
             <p className="mt-1 text-[10px] text-muted">
-              {home.beds > 0 ? `${home.beds} beds` : "Beds —"}{" "}
+              {home.beds > 0
+                ? t("dashboard.bedsValue", { count: home.beds })
+                : t("dashboard.bedsEmpty")}{" "}
               <span className="px-0.5">·</span>{" "}
-              {home.baths > 0 ? `${home.baths} baths` : "Baths —"}{" "}
+              {home.baths > 0
+                ? t("dashboard.bathsValue", { count: home.baths })
+                : t("dashboard.bathsEmpty")}{" "}
               <span className="px-0.5">·</span>{" "}
               {home.sqft > 0
-                ? `${home.sqft.toLocaleString("en-US")} sq ft`
-                : "Sq ft —"}
+                ? t("dashboard.sqftValue", { value: number(home.sqft) })
+                : t("dashboard.sqftEmpty")}
             </p>
           </div>
           <p className="shrink-0 font-serif text-[14px] text-ink">
-            {formatPriceOrPending(home.price)}
+            {formatPriceOrPending(home.price, locale)}
           </p>
         </div>
 
         <section className="mt-6">
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="font-serif text-[19px] text-ink">
-              How did it feel?
+              {t("tour.howFeel")}
             </h2>
             <span className="text-[10px] uppercase tracking-[0.12em] text-olive">
-              {rating > 0 ? RATING_LABELS[rating - 1] : "Not rated yet"}
+              {rating > 0
+                ? t(RATING_KEYS[rating - 1])
+                : t("tour.notRated")}
             </span>
           </div>
 
@@ -104,7 +112,7 @@ export function TourNotesScreen({
                 key={value}
                 type="button"
                 onClick={() => updateRating(value)}
-                aria-label={`Rate ${value} out of 5`}
+                aria-label={t("tour.rate", { value })}
                 aria-pressed={rating === value}
                 className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-white/50 text-muted transition-colors hover:border-olive/30 hover:bg-parchment focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40"
               >
@@ -121,9 +129,11 @@ export function TourNotesScreen({
 
         <section className="mt-6">
           <div className="flex items-baseline justify-between">
-            <h2 className="font-serif text-[19px] text-ink">Notes</h2>
+            <h2 className="font-serif text-[19px] text-ink">
+              {t("tour.notes")}
+            </h2>
             <span className="text-[10px] text-muted">
-              {saved ? "Saved" : "Tap to edit"}
+              {saved ? t("common.saved") : t("tour.tapToEdit")}
             </span>
           </div>
           <textarea
@@ -133,18 +143,18 @@ export function TourNotesScreen({
               setSaved(false);
             }}
             rows={5}
-            aria-label="Tour notes"
-            placeholder="What stood out? What would you change?"
+            aria-label={t("tour.notesAria")}
+            placeholder={t("tour.notesPlaceholder")}
             className="mt-3 w-full resize-none rounded-[20px] border border-line bg-white/60 px-4 py-3.5 text-[12.5px] leading-6 text-ink outline-none transition-colors placeholder:text-muted/60 focus:border-olive/35 focus:ring-2 focus:ring-olive/15"
           />
         </section>
 
         <ListEditor
           className="mt-6"
-          title="What you loved"
+          title={t("tour.loved")}
           tone="pro"
           items={pros}
-          placeholder="Add something you loved…"
+          placeholder={t("tour.lovedPlaceholder")}
           onChange={(items) => {
             setPros(items);
             setSaved(false);
@@ -153,10 +163,10 @@ export function TourNotesScreen({
 
         <ListEditor
           className="mt-5"
-          title="What gave you pause"
+          title={t("tour.pause")}
           tone="con"
           items={cons}
-          placeholder="Add a concern…"
+          placeholder={t("tour.pausePlaceholder")}
           onChange={(items) => {
             setCons(items);
             setSaved(false);
@@ -176,10 +186,10 @@ export function TourNotesScreen({
           {saved ? (
             <>
               <CheckIcon className="h-4 w-4" />
-              Notes Saved
+              {t("tour.notesSaved")}
             </>
           ) : (
-            "Save Tour Notes"
+            t("tour.saveNotes")
           )}
         </button>
       </div>
@@ -202,6 +212,7 @@ function ListEditor({
   tone: "pro" | "con";
   className?: string;
 }) {
+  const { t } = useI18n();
   const [draft, setDraft] = useState("");
   const [adding, setAdding] = useState(false);
 
@@ -224,7 +235,7 @@ function ListEditor({
           className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-[0.12em] text-olive transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40"
         >
           <PlusIcon className="h-3 w-3" />
-          Add
+          {t("common.add")}
         </button>
       </div>
 
@@ -252,7 +263,7 @@ function ListEditor({
               onClick={() =>
                 onChange(items.filter((_, itemIndex) => itemIndex !== index))
               }
-              aria-label={`Remove ${item}`}
+              aria-label={t("tour.removeItem", { item })}
               className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted/60 transition-colors hover:bg-parchment hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/30"
             >
               <TrashIcon className="h-3.5 w-3.5" />
@@ -280,13 +291,13 @@ function ListEditor({
               type="submit"
               className="rounded-full bg-olive px-3 py-1.5 text-[10px] font-medium text-cream transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40"
             >
-              Add
+              {t("common.add")}
             </button>
           </form>
         ) : (
           items.length === 0 && (
             <p className="px-4 py-4 text-[11px] text-muted">
-              Nothing added yet.
+              {t("tour.nothingAdded")}
             </p>
           )
         )}

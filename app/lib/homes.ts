@@ -1,3 +1,5 @@
+import type { Locale } from "./locale";
+
 export type Home = {
   id: string;
   address: string;
@@ -103,8 +105,12 @@ export function getHome(id: string) {
   return HOMES.find((home) => home.id === id) ?? TOP_MATCH;
 }
 
-export function formatPrice(value: number) {
-  return new Intl.NumberFormat("en-US", {
+function localeCode(locale: Locale) {
+  return locale === "es" ? "es-US" : "en-US";
+}
+
+export function formatPrice(value: number, locale: Locale = "en") {
+  return new Intl.NumberFormat(localeCode(locale), {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 0,
@@ -112,24 +118,44 @@ export function formatPrice(value: number) {
 }
 
 /** New homes can be added before a price is known. */
-export function formatPriceOrPending(value: number) {
-  return value > 0 ? formatPrice(value) : "Price TBD";
+export function formatPriceOrPending(value: number, locale: Locale = "en") {
+  if (value > 0) return formatPrice(value, locale);
+  return locale === "es" ? "Precio por confirmar" : "Price TBD";
 }
 
 /** Public records give lot size in square feet; show acres for normal lots. */
-export function formatLotSize(squareFeet: number) {
+export function formatLotSize(squareFeet: number, locale: Locale = "en") {
   if (!Number.isFinite(squareFeet) || squareFeet <= 0) return "";
   const acres = squareFeet / 43_560;
   if (acres < 0.25) {
-    return `${Math.round(squareFeet).toLocaleString("en-US")} sq ft`;
+    const amount = Math.round(squareFeet).toLocaleString(localeCode(locale));
+    return `${amount} ${locale === "es" ? "pies²" : "sq ft"}`;
   }
-  return `${acres.toFixed(acres >= 1 ? 1 : 2)} ac`;
+  const amount = acres.toFixed(acres >= 1 ? 1 : 2);
+  return `${amount} ${locale === "es" ? "acres" : "ac"}`;
 }
 
-export function formatPriceShort(value: number) {
+/**
+ * Lot sizes saved before the language switch are stored in English. Show the
+ * unit in the current language without rewriting the shared record.
+ */
+export function formatLotLabel(value: string, locale: Locale = "en") {
+  if (!value || locale !== "es") return value;
+  return value
+    .replace(/\bsq ft\b/gi, "pies²")
+    .replace(/\bac\b/gi, "acres");
+}
+
+export function formatPriceShort(value: number, locale: Locale = "en") {
   if (value >= 1_000_000) {
     const millions = value / 1_000_000;
-    return `$${Number.isInteger(millions) ? millions : millions.toFixed(2)}M`;
+    return `$${
+      Number.isInteger(millions)
+        ? millions.toLocaleString(localeCode(locale))
+        : millions.toFixed(2)
+    }M`;
   }
-  return `$${Math.round(value / 1_000)}K`;
+  return `$${Math.round(value / 1_000).toLocaleString(
+    localeCode(locale),
+  )}K`;
 }

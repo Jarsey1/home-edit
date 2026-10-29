@@ -148,6 +148,12 @@ export async function GET(request: Request) {
       }
     }
 
+    // When the query includes a house number, never offer a street-only match:
+    // selecting it would replace the house number with just the street name.
+    if (/^\d+\s/.test(query)) {
+      results = results.filter((result) => /^\d+\s/.test(result.address));
+    }
+
     results = results.slice(0, 6);
     cache.set(cacheKey, { at: Date.now(), results });
     if (cache.size > 200) {

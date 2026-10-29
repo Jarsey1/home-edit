@@ -2,6 +2,7 @@
 
 import { useAppData } from "../lib/app-data";
 import { formatPriceOrPending } from "../lib/homes";
+import { useI18n } from "../lib/i18n";
 import { HouseIllustration } from "./house-illustration";
 import {
   ArrowUpRightIcon,
@@ -29,12 +30,13 @@ export function Dashboard({
     mustTotal,
     toggleSaved,
   } = useAppData();
+  const { t, locale, number } = useI18n();
 
   const stats = [
-    { value: String(savedCount), label: "Saved Homes" },
-    { value: String(upcomingTours), label: "Upcoming Tours" },
-    { value: String(wishlistTotal), label: "Wishlist Items" },
-    { value: String(strongMatches), label: "Top Matches" },
+    { value: String(savedCount), label: t("dashboard.savedHomes") },
+    { value: String(upcomingTours), label: t("dashboard.upcomingTours") },
+    { value: String(wishlistTotal), label: t("dashboard.wishlistItems") },
+    { value: String(strongMatches), label: t("dashboard.topMatches") },
   ];
   const progress = mustTotal > 0 ? (mustDone / mustTotal) * 100 : 0;
   const saved = home.saved;
@@ -49,7 +51,7 @@ export function Dashboard({
             Home Edit
           </h1>
           <p className="mt-3 text-[13px] tracking-[0.01em] text-muted">
-            Your home search, organized.
+            {t("dashboard.tagline")}
           </p>
         </div>
 
@@ -57,17 +59,17 @@ export function Dashboard({
           <button
             type="button"
             onClick={onAddHome}
-            aria-label="Add a home"
+            aria-label={t("dashboard.addHomeAria")}
             className="flex h-11 items-center justify-center gap-1.5 rounded-full bg-olive px-3.5 text-[12px] font-medium text-cream shadow-sm transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
           >
             <PlusIcon className="h-4 w-4" />
-            Add Home
+            {t("add.addHome")}
           </button>
 
           <button
             type="button"
             onClick={onBrowseHomes}
-            aria-label="Browse homes"
+            aria-label={t("dashboard.browseHomes")}
             className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-parchment/70 text-olive transition-colors hover:border-olive/30 hover:bg-parchment focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40"
           >
             <SearchIcon className="h-[19px] w-[19px]" />
@@ -79,7 +81,7 @@ export function Dashboard({
         <div className="rounded-[26px] border border-line bg-parchment px-5 pb-5 pt-4">
           <div className="flex items-baseline justify-between">
             <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted">
-              Your Progress
+              {t("dashboard.yourProgress")}
             </p>
             <p className="text-[13px] font-medium tracking-[0.03em] text-olive">
               {mustDone}
@@ -89,7 +91,7 @@ export function Dashboard({
 
           <div
             role="progressbar"
-            aria-label="Home search progress"
+            aria-label={t("dashboard.progressAria")}
             aria-valuemin={0}
             aria-valuemax={mustTotal}
             aria-valuenow={mustDone}
@@ -119,10 +121,12 @@ export function Dashboard({
       <section className="mt-8 px-6 pb-9">
         <div className="flex items-baseline justify-between">
           <h2 className="font-serif text-[23px] tracking-[-0.01em] text-ink">
-            Your Top Match
+            {t("dashboard.yourTopMatch")}
           </h2>
           <span className="text-[10px] uppercase tracking-[0.16em] text-muted">
-            {strongMatches} {strongMatches === 1 ? "match" : "matches"}
+            {strongMatches === 1
+              ? t("common.matchCountOne", { count: strongMatches })
+              : t("common.matchCountMany", { count: strongMatches })}
           </span>
         </div>
 
@@ -131,7 +135,7 @@ export function Dashboard({
             <button
               type="button"
               onClick={() => onOpenProperty(home.id)}
-              aria-label={`View ${home.address}`}
+              aria-label={t("common.view", { address: home.address })}
               className="absolute inset-0 block h-full w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-olive/40"
             >
               <span
@@ -144,7 +148,9 @@ export function Dashboard({
 
             <span className="pointer-events-none absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-cream/95 px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-olive shadow-sm backdrop-blur">
               <span className="h-1.5 w-1.5 rounded-full bg-olive" />
-              {home.match > 0 ? `${home.match}% Match` : "New"}
+              {home.match > 0
+                ? t("common.match", { percent: home.match })
+                : t("common.new")}
             </span>
 
             <button
@@ -152,8 +158,8 @@ export function Dashboard({
               onClick={() => toggleSaved(home.id)}
               aria-label={
                 saved
-                  ? `Remove ${home.address} from saved homes`
-                  : `Save ${home.address}`
+                  ? t("common.removeAddress", { address: home.address })
+                  : t("property.saveHome")
               }
               aria-pressed={saved}
               className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-cream/90 text-olive shadow-sm backdrop-blur transition-colors hover:bg-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cream/80"
@@ -173,45 +179,49 @@ export function Dashboard({
                   {home.address}
                 </h3>
                 <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-muted">
-                  {home.city || "City to confirm"}
+                  {home.city || t("common.cityToConfirm")}
                 </p>
               </div>
               <p className="shrink-0 font-serif text-[21px] leading-tight text-ink">
-                {formatPriceOrPending(home.price)}
+                {formatPriceOrPending(home.price, locale)}
               </p>
             </div>
 
             <p className="mt-4 text-[13px] text-muted">
-              {home.beds > 0 ? `${home.beds} beds` : "Beds —"}{" "}
+              {home.beds > 0
+                ? t("dashboard.bedsValue", { count: home.beds })
+                : t("dashboard.bedsEmpty")}{" "}
               <span className="px-1 text-muted/50">·</span>{" "}
-              {home.baths > 0 ? `${home.baths} baths` : "Baths —"}{" "}
+              {home.baths > 0
+                ? t("dashboard.bathsValue", { count: home.baths })
+                : t("dashboard.bathsEmpty")}{" "}
               <span className="px-1 text-muted/50">·</span>{" "}
               {home.sqft > 0
-                ? `${home.sqft.toLocaleString("en-US")} sq ft`
-                : "Sq ft —"}
+                ? t("dashboard.sqftValue", { value: number(home.sqft) })
+                : t("dashboard.sqftEmpty")}
             </p>
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-line bg-parchment/60 px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] text-muted">
-                For Sale
+                {t("common.forSale")}
               </span>
               {home.gated && (
                 <span className="rounded-full border border-line bg-parchment/60 px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] text-muted">
-                  Gated Community
+                  {t("common.gatedCommunity")}
                 </span>
               )}
             </div>
 
             <div className="mt-5 flex items-center justify-between border-t border-line/80 pt-4">
               <span className="text-[11px] tracking-[0.02em] text-muted">
-                Updated today
+                {t("dashboard.updatedToday")}
               </span>
               <button
                 type="button"
                 onClick={() => onOpenProperty(home.id)}
                 className="group inline-flex items-center gap-1.5 text-[13px] font-medium text-olive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
               >
-                View Details
+                {t("dashboard.viewDetails")}
                 <ArrowUpRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
               </button>
             </div>

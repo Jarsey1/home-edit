@@ -1,5 +1,6 @@
 import { addressesMatch } from "./address-match";
 import type { PublicRecordFacts } from "./miami-dade-parcels";
+import { US_STATES } from "./us-states";
 
 type StoredHomeRow = {
   id: string;
@@ -42,6 +43,58 @@ function splitCity(city: string) {
     city: name.trim(),
     zip: rest.match(/\b(\d{5})\b/)?.[1] ?? "",
   };
+}
+
+function normalizeLocality(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stateCodeFrom(value: string) {
+  const normalized = normalizeLocality(value);
+  if (!normalized) return null;
+  const words = new Set(normalized.split(" "));
+  return (
+    US_STATES.find(
+      (state) =>
+        words.has(state.code.toLowerCase()) ||
+        normalized.includes(state.name.toLowerCase()),
+    )?.code ?? null
+  );
+}
+
+function localityFromCityField(city: string) {
+  const [name = "", ...rest] = city.split(",");
+  return {
+    city: normalizeLocality(name),
+    state: stateCodeFrom(rest.join(" ")),
+  };
+}
+
+function localityFromAddress(address: string) {
+  const parts = address.split(",").map((part) => part.trim());
+  if (parts.length < 2) return null;
+  return {
+    city: normalizeLocality(parts[1] ?? ""),
+    state: stateCodeFrom(parts.slice(2).join(" ")),
+  };
+}
+
+/**
+ * A matching street still belongs to a different home when it is in another
+ * city or state. Only compare locality when both sides provide one, so older
+ * rows saved without a city keep working.
+ */
+function localityMatches(requested: string, storedCity: string) {
+  const wanted = localityFromAddress(requested);
+  const saved = localityFromCityField(storedCity);
+  if (!wanted || !saved) return true;
+  if (wanted.state && saved.state && wanted.state !== saved.state) return false;
+  if (wanted.city && saved.city && wanted.city !== saved.city) return false;
+  return true;
 }
 
 async function loadHomes(): Promise<StoredHomeRow[]> {
@@ -88,6 +141,7 @@ export async function findStoredHome(
     (home) =>
       home.address &&
       addressesMatch(address, home.address) &&
+      localityMatches(address, home.city ?? "") &&
       (toNumber(home.beds) ||
         toNumber(home.baths) ||
         toNumber(home.sqft) ||

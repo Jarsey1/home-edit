@@ -63,11 +63,14 @@ export function addressesMatch(requested: string, resolved: string) {
   const right = streetTokens(resolved);
   if (left.length === 0 || right.length === 0) return false;
 
-  if (
-    /^\d+$/.test(left[0]) &&
-    /^\d+$/.test(right[0]) &&
-    left[0] !== right[0]
-  ) {
+  const leftHasNumber = /^\d+$/.test(left[0]);
+  const rightHasNumber = /^\d+$/.test(right[0]);
+
+  // A street-only address must never inherit facts from a specific house on
+  // that street (or the other way around).
+  if (leftHasNumber !== rightHasNumber) return false;
+
+  if (leftHasNumber && left[0] !== right[0]) {
     return false;
   }
 

@@ -2,6 +2,7 @@
 
 import type { ComponentType, SVGProps } from "react";
 import { useAppData } from "../../lib/app-data";
+import { useI18n } from "../../lib/i18n";
 import {
   BudgetIcon,
   CalendarIcon,
@@ -36,35 +37,39 @@ export function MoreScreen({
   onOpenNeighborhood: () => void;
 }) {
   const { savedCount, upcomingTours, topMatch, status } = useAppData();
+  const { t, locale, setLocale } = useI18n();
 
   const searchRows: Row[] = [
     {
-      label: "Compare Homes",
-      detail: `${savedCount} saved ${savedCount === 1 ? "home" : "homes"}, side by side`,
+      label: t("more.compare"),
+      detail:
+        savedCount === 1
+          ? t("common.savedHomeOne", { count: savedCount })
+          : t("common.savedHomeMany", { count: savedCount }),
       Icon: HomesIcon,
       onClick: onOpenHomes,
     },
     {
-      label: "Wishlist",
-      detail: "Must-haves, nice-to-haves and progress",
+      label: t("more.wishlist"),
+      detail: t("more.wishlistDetail"),
       Icon: HeartIcon,
       onClick: onOpenWishlist,
     },
     {
-      label: "Tour Notes",
-      detail: "Ratings, impressions, pros and cons",
+      label: t("more.tourNotes"),
+      detail: t("more.tourNotesDetail"),
       Icon: CalendarIcon,
       onClick: onOpenTour,
     },
     {
-      label: "Neighborhood",
-      detail: "Schools, errands, flood and evacuation",
+      label: t("more.neighborhood"),
+      detail: t("more.neighborhoodDetail"),
       Icon: MapPinIcon,
       onClick: onOpenNeighborhood,
     },
     {
-      label: "Budget Planner",
-      detail: "The real monthly number",
+      label: t("more.budget"),
+      detail: t("more.budgetDetail"),
       Icon: BudgetIcon,
       onClick: onOpenBudget,
     },
@@ -72,23 +77,28 @@ export function MoreScreen({
 
   const soonRows: Row[] = [
     {
-      label: "Documents",
-      detail: "Disclosures, inspections and offers",
+      label: t("more.documents"),
+      detail: t("more.documentsDetail"),
       Icon: DocumentIcon,
-      badge: "Soon",
+      badge: t("more.soon"),
     },
     {
-      label: "Cities to Avoid",
-      detail: "Keep your dealbreakers close",
+      label: t("more.cities"),
+      detail: t("more.citiesDetail"),
       Icon: SparkleIcon,
-      badge: "Soon",
+      badge: t("more.soon"),
     },
     {
-      label: "Settings",
-      detail: "Notifications, account and appearance",
+      label: t("more.settings"),
+      detail: t("more.settingsDetail"),
       Icon: SettingsIcon,
-      badge: "Soon",
+      badge: t("more.soon"),
     },
+  ];
+
+  const languageOptions = [
+    { id: "en" as const, label: t("more.english") },
+    { id: "es" as const, label: t("more.spanish") },
   ];
 
   return (
@@ -102,31 +112,72 @@ export function MoreScreen({
         </div>
 
         <p className="mt-7 text-[10px] font-medium uppercase tracking-[0.2em] text-muted">
-          Everything else
+          {t("more.eyebrow")}
         </p>
         <h1 className="mt-1 font-serif text-[36px] leading-none tracking-[-0.02em] text-ink">
-          More
+          {t("more.title")}
         </h1>
       </header>
 
       <div className="px-6 pb-9">
-        <div className="mt-6 rounded-[24px] bg-olive p-5 text-cream">
+        <div className="mt-6 flex items-center justify-between gap-3 rounded-[20px] border border-line bg-white/50 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted">
+              {t("more.language")}
+            </p>
+            <p className="mt-1 text-[10px] leading-4 text-muted">
+              {t("more.languageHint")}
+            </p>
+          </div>
+
+          <div
+            role="group"
+            aria-label={t("more.language")}
+            className="flex shrink-0 rounded-full border border-line bg-parchment p-0.5"
+          >
+            {languageOptions.map((option) => {
+              const active = locale === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  lang={option.id}
+                  onClick={() => setLocale(option.id)}
+                  aria-pressed={active}
+                  className={[
+                    "min-h-9 rounded-full px-3 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40",
+                    active
+                      ? "bg-olive text-cream shadow-sm"
+                      : "text-muted hover:text-ink",
+                  ].join(" ")}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-[24px] bg-olive p-5 text-cream">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[10px] uppercase tracking-[0.16em] text-cream/55">
-              Your search so far
+              {t("more.summary")}
             </p>
             <span className="rounded-full bg-cream/10 px-2 py-0.5 text-[9px] uppercase tracking-[0.12em] text-cream/70">
-              Active
+              {t("more.active")}
             </span>
           </div>
 
           <div className="mt-4 grid grid-cols-3 gap-3">
             {[
-              { value: String(savedCount), label: "Saved homes" },
-              { value: String(upcomingTours), label: "Tours" },
+              { value: String(savedCount), label: t("more.savedHomes") },
+              { value: String(upcomingTours), label: t("more.tours") },
               {
-                value: topMatch.match > 0 ? `${topMatch.match}%` : "New",
-                label: "Top match",
+                value:
+                  topMatch.match > 0
+                    ? t("compare.matchBadge", { percent: topMatch.match })
+                    : t("common.new"),
+                label: t("more.topMatch"),
               },
             ].map((stat) => (
               <div key={stat.label}>
@@ -153,20 +204,20 @@ export function MoreScreen({
               ].join(" ")}
             />
             {status === "synced"
-              ? "Synced across your devices"
+              ? t("more.synced")
               : status === "local"
-                ? "Saved on this device only"
-                : "Connecting…"}
+                ? t("more.local")
+                : t("more.connecting")}
           </p>
         </div>
 
-        <RowGroup title="Your search" rows={searchRows} />
-        <RowGroup title="Coming soon" rows={soonRows} />
+        <RowGroup title={t("more.yourSearch")} rows={searchRows} />
+        <RowGroup title={t("more.comingSoon")} rows={soonRows} />
 
         <p className="mt-7 text-center text-[10px] leading-5 text-muted">
           The Next Home Edit
           <br />
-          Version 1.0 · Made for your search
+          {t("more.version")}
         </p>
       </div>
     </div>

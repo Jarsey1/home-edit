@@ -1,7 +1,16 @@
 "use client";
 
 import { useAppData } from "../../lib/app-data";
-import { formatPriceOrPending, type Home } from "../../lib/homes";
+import {
+  formatLotLabel,
+  formatPriceOrPending,
+  type Home,
+} from "../../lib/homes";
+import {
+  translatePropertyType,
+  translateWishlistText,
+  useI18n,
+} from "../../lib/i18n";
 import { HouseIllustration } from "../house-illustration";
 import { BackButton } from "../back-button";
 import {
@@ -25,29 +34,45 @@ export function PropertyScreen({
   onOpenNeighborhood: () => void;
 }) {
   const { toggleSaved, setTourRequested } = useAppData();
+  const { t, locale, number } = useI18n();
   const saved = home.saved;
   const scheduled = home.tourRequested;
 
   const specs = [
-    { value: home.beds > 0 ? home.beds : "—", label: "Beds" },
-    { value: home.baths > 0 ? home.baths : "—", label: "Baths" },
+    { value: home.beds > 0 ? home.beds : "—", label: t("common.beds") },
+    { value: home.baths > 0 ? home.baths : "—", label: t("common.baths") },
     {
-      value: home.sqft > 0 ? home.sqft.toLocaleString("en-US") : "—",
-      label: "Sq ft",
+      value: home.sqft > 0 ? number(home.sqft) : "—",
+      label: t("common.sqft"),
     },
-    { value: home.lot || "—", label: "Lot" },
+    {
+      value: formatLotLabel(home.lot, locale) || "—",
+      label: t("common.lot"),
+    },
   ];
 
   const details = [
-    { label: "Property type", value: home.type || "—" },
     {
-      label: "Year built",
+      label: t("property.type"),
+      value: translatePropertyType(home.type, locale) || "—",
+    },
+    {
+      label: t("common.yearBuilt"),
       value: home.yearBuilt > 0 ? String(home.yearBuilt) : "—",
     },
-    { label: "HOA", value: home.hoa > 0 ? `$${home.hoa}/mo` : "—" },
     {
-      label: "Days on market",
-      value: home.daysOnMarket > 0 ? `${home.daysOnMarket} days` : "—",
+      label: t("property.hoa"),
+      value:
+        home.hoa > 0
+          ? t("property.hoaMonthly", { amount: number(home.hoa) })
+          : "—",
+    },
+    {
+      label: t("property.daysOnMarket"),
+      value:
+        home.daysOnMarket > 0
+          ? t("property.daysValue", { count: home.daysOnMarket })
+          : "—",
     },
   ];
 
@@ -63,12 +88,12 @@ export function PropertyScreen({
         <div className="absolute inset-0 bg-gradient-to-b from-ink/30 via-transparent to-ink/25" />
 
         <div className="absolute inset-x-0 top-0 flex items-center justify-between px-5 pt-7">
-          <BackButton onClick={onBack} label="Go back" />
+          <BackButton onClick={onBack} label={t("common.goBack")} />
 
           <div className="flex gap-2">
             <button
               type="button"
-              aria-label="Share this home"
+              aria-label={t("property.share")}
               className="flex h-10 w-10 items-center justify-center rounded-full border border-cream/40 bg-cream/90 text-olive backdrop-blur transition-colors hover:bg-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cream/70"
             >
               <ShareIcon className="h-[17px] w-[17px]" />
@@ -76,7 +101,9 @@ export function PropertyScreen({
             <button
               type="button"
               onClick={() => toggleSaved(home.id)}
-              aria-label={saved ? "Remove from saved homes" : "Save this home"}
+              aria-label={
+                saved ? t("property.removeSaved") : t("property.saveHome")
+              }
               aria-pressed={saved}
               className="flex h-10 w-10 items-center justify-center rounded-full border border-cream/40 bg-cream/90 text-olive backdrop-blur transition-colors hover:bg-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cream/70"
             >
@@ -93,19 +120,21 @@ export function PropertyScreen({
         <div className="absolute inset-x-5 bottom-7 flex items-end justify-between gap-3">
           <div className="flex flex-wrap gap-1.5">
             <span className="rounded-full bg-cream/95 px-2.5 py-1.5 text-[9px] font-medium uppercase tracking-[0.1em] text-olive backdrop-blur">
-              {home.match > 0 ? `${home.match}% Match` : "New"}
+              {home.match > 0
+                ? t("common.match", { percent: home.match })
+                : t("common.new")}
             </span>
             <span className="rounded-full border border-cream/40 bg-ink/25 px-2.5 py-1.5 text-[9px] uppercase tracking-[0.1em] text-cream backdrop-blur">
-              For Sale
+              {t("common.forSale")}
             </span>
             {home.gated && (
               <span className="rounded-full border border-cream/40 bg-ink/25 px-2.5 py-1.5 text-[9px] uppercase tracking-[0.1em] text-cream backdrop-blur">
-                Gated
+                {t("property.gated")}
               </span>
             )}
           </div>
           <span className="shrink-0 rounded-full border border-cream/35 bg-ink/25 px-2.5 py-1.5 text-[9px] tracking-[0.08em] text-cream backdrop-blur">
-            {home.match > 0 ? "1 / 24" : "New listing"}
+            {home.match > 0 ? "1 / 24" : t("common.newListing")}
           </span>
         </div>
       </div>
@@ -118,17 +147,17 @@ export function PropertyScreen({
             </h1>
             <p className="mt-2 flex items-center gap-1 text-[10px] uppercase tracking-[0.1em] text-muted">
               <MapPinIcon className="h-3.5 w-3.5 text-olive/70" />
-              {home.city || "City to confirm"}
+              {home.city || t("common.cityToConfirm")}
             </p>
           </div>
           <p className="shrink-0 pt-1 font-serif text-[22px] leading-tight text-ink">
-            {formatPriceOrPending(home.price)}
+            {formatPriceOrPending(home.price, locale)}
           </p>
         </div>
 
         <div className="mt-5">
           <p className="text-[9px] font-medium uppercase tracking-[0.16em] text-muted">
-            Property facts
+            {t("property.facts")}
           </p>
           <div className="mt-2 grid grid-cols-4 rounded-2xl border border-line bg-white/50 py-3">
             {specs.map((spec, index) => (
@@ -151,10 +180,11 @@ export function PropertyScreen({
         </div>
 
         <section className="mt-6">
-          <h2 className="font-serif text-[19px] text-ink">About this home</h2>
+          <h2 className="font-serif text-[19px] text-ink">
+            {t("property.about")}
+          </h2>
           <p className="mt-2 text-[12px] leading-[1.7] text-muted">
-            {home.description ||
-              "No description yet. Add details from the listing, or capture your impressions in Tour Notes after you visit."}
+            {home.description || t("property.noDescription")}
           </p>
         </section>
 
@@ -165,7 +195,7 @@ export function PropertyScreen({
                 key={feature}
                 className="rounded-full border border-line bg-parchment/70 px-2.5 py-1 text-[9px] uppercase tracking-[0.1em] text-muted"
               >
-                {feature}
+                {translateWishlistText(feature, locale)}
               </span>
             ))}
           </div>
@@ -182,10 +212,10 @@ export function PropertyScreen({
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-[12px] font-medium text-ink">
-                Tour Notes
+                {t("more.tourNotes")}
               </span>
               <span className="mt-0.5 block text-[10px] text-muted">
-                Rating, notes, pros and cons
+                {t("property.tourDetail")}
               </span>
             </span>
             <ChevronRightIcon className="h-4 w-4 shrink-0 text-muted/70" />
@@ -201,10 +231,10 @@ export function PropertyScreen({
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-[12px] font-medium text-ink">
-                Neighborhood
+                {t("more.neighborhood")}
               </span>
               <span className="mt-0.5 block text-[10px] text-muted">
-                Schools, commute times and flood zone
+                {t("property.neighborhoodDetail")}
               </span>
             </span>
             <ChevronRightIcon className="h-4 w-4 shrink-0 text-muted/70" />
@@ -212,7 +242,9 @@ export function PropertyScreen({
         </div>
 
         <section className="mt-6">
-          <h2 className="font-serif text-[19px] text-ink">Home details</h2>
+          <h2 className="font-serif text-[19px] text-ink">
+            {t("property.details")}
+          </h2>
           <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-white/50">
             {details.map((detail, index) => (
               <div
@@ -239,12 +271,12 @@ export function PropertyScreen({
           {scheduled ? (
             <>
               <CheckIcon className="h-4 w-4" />
-              Tour Requested
+              {t("property.tourRequested")}
             </>
           ) : (
             <>
               <CalendarIcon className="h-4 w-4" />
-              Schedule Tour
+              {t("property.scheduleTour")}
             </>
           )}
         </button>
@@ -262,7 +294,7 @@ export function PropertyScreen({
           <HeartIcon
             className={["h-4 w-4", saved ? "fill-current" : ""].join(" ")}
           />
-          {saved ? "Saved" : "Save"}
+          {saved ? t("common.saved") : t("common.save")}
         </button>
       </div>
     </div>

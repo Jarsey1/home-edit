@@ -1,11 +1,8 @@
 "use client";
 
-import {
-  useMemo,
-  useState,
-  type FormEvent,
-} from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useAppData } from "../../lib/app-data";
+import { translateWishlistText, useI18n } from "../../lib/i18n";
 import type { WishlistItem } from "../../lib/types";
 import { BackButton } from "../back-button";
 import { HouseIllustration } from "../house-illustration";
@@ -63,6 +60,7 @@ export function WishlistScreen({
   onBrowseHomes: () => void;
 }) {
   const { wishlist, toggleWishlistItem, addWishlistItem } = useAppData();
+  const { t, locale } = useI18n();
   const [filter, setFilter] = useState<Filter>("all");
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -80,6 +78,12 @@ export function WishlistScreen({
 
   const mustDone = must.filter((item) => item.done).length;
   const niceDone = nice.filter((item) => item.done).length;
+
+  const filterTabs = [
+    { id: "all" as const, label: t("wishlist.all") },
+    { id: "must" as const, label: t("wishlist.must", { count: must.length }) },
+    { id: "nice" as const, label: t("wishlist.nice", { count: nice.length }) },
+  ];
 
   function startAdding() {
     if (filter === "all") setFilter("must");
@@ -99,13 +103,13 @@ export function WishlistScreen({
     <div className="flex flex-1 flex-col">
       <header className="flex items-start justify-between px-6 pt-8">
         <div className="flex items-start gap-3">
-          <BackButton onClick={onBack} label="Back to dashboard" />
+          <BackButton onClick={onBack} label={t("common.backToDashboard")} />
           <div>
             <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted">
-              Your criteria
+              {t("wishlist.eyebrow")}
             </p>
             <h1 className="mt-1 font-serif text-[31px] leading-none tracking-[-0.02em] text-ink">
-              My Wishlist
+              {t("wishlist.title")}
             </h1>
           </div>
         </div>
@@ -113,7 +117,7 @@ export function WishlistScreen({
         <button
           type="button"
           onClick={startAdding}
-          aria-label="Add a wishlist item"
+          aria-label={t("wishlist.addAria")}
           className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-olive text-cream transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
         >
           <PlusIcon className="h-5 w-5" />
@@ -122,13 +126,7 @@ export function WishlistScreen({
 
       <div className="px-6 pb-9">
         <div className="mt-5 flex rounded-full border border-line bg-parchment p-1">
-          {(
-            [
-              { id: "all", label: "All" },
-              { id: "must", label: `Must-have (${must.length})` },
-              { id: "nice", label: `Nice-to-have (${nice.length})` },
-            ] as const
-          ).map((tab) => (
+          {filterTabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
@@ -155,7 +153,9 @@ export function WishlistScreen({
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               placeholder={
-                filter === "nice" ? "Add a nice-to-have…" : "Add a must-have…"
+                filter === "nice"
+                  ? t("wishlist.addNice")
+                  : t("wishlist.addMust")
               }
               className="min-w-0 flex-1 bg-transparent text-[13px] text-ink placeholder:text-muted/70 focus:outline-none"
             />
@@ -163,7 +163,7 @@ export function WishlistScreen({
               type="submit"
               className="rounded-full bg-olive px-3.5 py-2 text-[11px] font-medium text-cream"
             >
-              Add
+              {t("common.add")}
             </button>
           </form>
         )}
@@ -188,7 +188,7 @@ export function WishlistScreen({
                   >
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-[13px] font-medium text-ink">
-                        {category.name}
+                        {translateWishlistText(category.name, locale)}
                       </span>
                       <span className="text-[11px] tabular-nums text-muted">
                         {category.done}/{category.total}
@@ -235,7 +235,7 @@ export function WishlistScreen({
                                   : ""
                               }
                             >
-                              {item.label}
+                              {translateWishlistText(item.label, locale)}
                             </span>
                           </button>
                         </li>
@@ -252,7 +252,10 @@ export function WishlistScreen({
           <Checklist
             items={must}
             onToggle={toggleWishlistItem}
-            title={`${mustDone} of ${must.length} must-haves complete`}
+            title={t("wishlist.mustComplete", {
+              done: mustDone,
+              total: must.length,
+            })}
             percent={(mustDone / Math.max(1, must.length)) * 100}
           />
         )}
@@ -261,7 +264,10 @@ export function WishlistScreen({
           <Checklist
             items={nice}
             onToggle={toggleWishlistItem}
-            title={`${niceDone} of ${nice.length} nice-to-haves complete`}
+            title={t("wishlist.niceComplete", {
+              done: niceDone,
+              total: nice.length,
+            })}
             percent={(niceDone / Math.max(1, nice.length)) * 100}
           />
         )}
@@ -276,10 +282,10 @@ export function WishlistScreen({
           <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4">
             <div>
               <p className="font-serif text-[19px] leading-tight text-cream">
-                Need inspiration?
+                {t("wishlist.inspiration")}
               </p>
               <p className="mt-1 text-[11px] leading-4 text-cream/75">
-                Browse homes that match your wishlist.
+                {t("wishlist.inspirationBody")}
               </p>
             </div>
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-cream/95 text-olive">
@@ -303,6 +309,8 @@ function Checklist({
   title: string;
   percent: number;
 }) {
+  const { locale } = useI18n();
+
   return (
     <div className="mt-5">
       <div className="flex items-center gap-3">
@@ -337,7 +345,7 @@ function Checklist({
             >
               <CheckIcon className="h-3 w-3" />
             </span>
-            {item.label}
+            {translateWishlistText(item.label, locale)}
           </button>
         ))}
       </div>

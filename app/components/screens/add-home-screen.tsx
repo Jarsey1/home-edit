@@ -11,7 +11,12 @@ import {
 } from "react";
 import { useAppData } from "../../lib/app-data";
 import { isNearDuplicateAddress } from "../../lib/address-match";
-import { formatLotSize, formatPrice } from "../../lib/homes";
+import { formatLotLabel, formatLotSize, formatPrice } from "../../lib/homes";
+import {
+  translatePropertyType,
+  useI18n,
+  type TranslationKey,
+} from "../../lib/i18n";
 import { findState, US_STATES } from "../../lib/us-states";
 import { BackButton } from "../back-button";
 import {
@@ -74,6 +79,7 @@ export function AddHomeScreen({
   onAdded: (homeId: string) => void;
 }) {
   const { homes, addHome, status } = useAppData();
+  const { t, locale, number } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const listId = useId();
   const addressId = useId();
@@ -97,7 +103,7 @@ export function AddHomeScreen({
   const [open, setOpen] = useState(false);
   const [dropUp, setDropUp] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<TranslationKey | null>(null);
   const [saving, setSaving] = useState(false);
 
   const lookupController = useRef<AbortController | null>(null);
@@ -122,14 +128,19 @@ export function AddHomeScreen({
       : undefined;
   const detailMeta = lookupDetails
     ? [
-        lookupDetails.propertyType,
-        lookupDetails.yearBuilt ? `Built ${lookupDetails.yearBuilt}` : "",
+        translatePropertyType(lookupDetails.propertyType, locale),
+        lookupDetails.yearBuilt
+          ? t("add.built", { year: lookupDetails.yearBuilt })
+          : "",
         lookupDetails.lastSalePrice
-          ? `Last sold ${formatPrice(lookupDetails.lastSalePrice)}${
-              lookupDetails.lastSaleDate
-                ? ` in ${lookupDetails.lastSaleDate.slice(0, 4)}`
-                : ""
-            }`
+          ? lookupDetails.lastSaleDate
+            ? t("add.lastSoldYear", {
+                price: formatPrice(lookupDetails.lastSalePrice, locale),
+                year: lookupDetails.lastSaleDate.slice(0, 4),
+              })
+            : t("add.lastSold", {
+                price: formatPrice(lookupDetails.lastSalePrice, locale),
+              })
           : "",
       ]
         .filter(Boolean)
@@ -269,6 +280,7 @@ export function AddHomeScreen({
     }
 
     autoFilled.current = next;
+    // Shared data is stored in English; display translates the unit.
     setLot(formatLotSize(details.lotSize ?? 0));
     setYearBuilt(details.yearBuilt ? String(details.yearBuilt) : "");
 
@@ -424,12 +436,12 @@ export function AddHomeScreen({
     if (saving) return;
 
     if (!address) {
-      setError("Enter a street address to continue.");
+      setError("add.enterAddress");
       return;
     }
 
     if (duplicate) {
-      setError("That address is already in your shortlist.");
+      setError("add.alreadySaved");
       return;
     }
 
@@ -448,7 +460,7 @@ export function AddHomeScreen({
 
     if (!home) {
       setSaving(false);
-      setError("That address is already in your shortlist.");
+      setError("add.alreadySaved");
       return;
     }
 
@@ -458,23 +470,19 @@ export function AddHomeScreen({
   return (
     <div className="flex flex-1 flex-col">
       <header className="flex items-start gap-3 px-6 pt-8">
-        <BackButton onClick={onBack} label="Go back" />
+        <BackButton onClick={onBack} label={t("common.goBack")} />
         <div>
           <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted">
-            New shortlist
+            {t("add.eyebrow")}
           </p>
           <h1 className="mt-1 font-serif text-[31px] leading-none tracking-[-0.02em] text-ink">
-            Add a Home
+            {t("add.title")}
           </h1>
         </div>
       </header>
 
       <div className="px-6 pb-10 pt-5">
-        <p className="text-[12px] leading-5 text-muted">
-          Pick a state to make suggestions more accurate, then start typing a
-          street address and choose the closest match. You can add the details
-          you know and fill in the rest later.
-        </p>
+        <p className="text-[12px] leading-5 text-muted">{t("add.intro")}</p>
 
         <form onSubmit={submit} className="mt-5">
           <div>
@@ -482,7 +490,10 @@ export function AddHomeScreen({
               htmlFor={stateId}
               className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted"
             >
-              State <span className="normal-case text-muted/70">(optional)</span>
+              {t("add.state")}{" "}
+              <span className="normal-case text-muted/70">
+                {t("add.optional")}
+              </span>
             </label>
 
             <div className="relative mt-2">
@@ -492,7 +503,7 @@ export function AddHomeScreen({
                 onChange={(event) => changeState(event.target.value)}
                 className="w-full appearance-none rounded-2xl border border-line bg-white/60 py-3 pl-4 pr-10 text-[13px] text-ink outline-none transition-colors focus:border-olive/35 focus:ring-2 focus:ring-olive/15"
               >
-                <option value="">Any state</option>
+                <option value="">{t("add.anyState")}</option>
                 {US_STATES.map((state) => (
                   <option key={state.code} value={state.code}>
                     {state.name}
@@ -504,8 +515,8 @@ export function AddHomeScreen({
 
             <p className="mt-2 text-[10px] leading-4 text-muted">
               {selectedState
-                ? `Address suggestions will be narrowed to ${selectedState.name}.`
-                : "Choosing a state first narrows the address suggestions to that state."}
+                ? t("add.stateSelected", { state: selectedState.name })
+                : t("add.stateHint")}
             </p>
           </div>
 
@@ -513,7 +524,7 @@ export function AddHomeScreen({
             htmlFor={addressId}
             className="mt-5 block text-[10px] font-medium uppercase tracking-[0.16em] text-muted"
           >
-            Street address
+            {t("add.streetAddress")}
           </label>
 
           <div className="relative mt-2">
@@ -540,10 +551,10 @@ export function AddHomeScreen({
                 aria-activedescendant={
                   activeIndex >= 0 ? `${listId}-option-${activeIndex}` : undefined
                 }
-                aria-label="Street address"
+                aria-label={t("add.streetAddress")}
                 autoComplete="off"
                 autoFocus
-                placeholder="e.g. 123 Palm Lane"
+                placeholder={t("add.streetPlaceholder")}
                 className="w-full rounded-2xl border border-line bg-white/60 py-3.5 pl-11 pr-10 text-[14px] text-ink outline-none transition-colors placeholder:text-muted/50 focus:border-olive/35 focus:ring-2 focus:ring-olive/15"
               />
               {loading && (
@@ -558,7 +569,7 @@ export function AddHomeScreen({
               <ul
                 id={listId}
                 role="listbox"
-                aria-label="Address suggestions"
+                aria-label={t("add.suggestionsAria")}
                 className={[
                   "absolute inset-x-0 z-30 max-h-64 overflow-y-auto rounded-2xl border border-line bg-cream py-1.5 shadow-[0_20px_45px_-20px_rgba(36,34,31,0.45)]",
                   dropUp ? "bottom-full mb-2" : "top-full mt-2",
@@ -596,14 +607,14 @@ export function AddHomeScreen({
                 {!loading && suggestions.length === 0 && (
                   <li className="px-4 py-3 text-[11px] leading-5 text-muted">
                     {searchFailed
-                      ? "Address suggestions are unavailable right now. You can still add the address you typed."
-                      : "No matches found. You can still add the address you typed."}
+                      ? t("add.searchUnavailable")
+                      : t("add.noMatches")}
                   </li>
                 )}
 
                 {loading && suggestions.length === 0 && (
                   <li className="px-4 py-3 text-[11px] text-muted">
-                    Searching addresses…
+                    {t("add.searching")}
                   </li>
                 )}
               </ul>
@@ -612,9 +623,11 @@ export function AddHomeScreen({
 
           <p aria-live="polite" className="sr-only">
             {loading
-              ? "Searching for address suggestions."
+              ? t("add.searchingAria")
               : suggestions.length > 0
-                ? `${suggestions.length} address suggestions available.`
+                ? t("add.suggestionsAvailable", {
+                    count: suggestions.length,
+                  })
                 : ""}
           </p>
 
@@ -647,27 +660,24 @@ export function AddHomeScreen({
                 }}
                 className="shrink-0 text-[10px] font-medium uppercase tracking-[0.1em] text-olive transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40"
               >
-                Change
+                {t("common.change")}
               </button>
             </div>
           )}
 
           {!selected && query.trim().length > 0 && query.trim().length < 4 && (
             <p className="mt-2 text-[10px] text-muted">
-              Keep typing to see address suggestions.
+              {t("add.keepTyping")}
             </p>
           )}
 
           {duplicate && (
-            <p className="mt-2 text-[11px] text-gold">
-              This address is already in your shortlist.
-            </p>
+            <p className="mt-2 text-[11px] text-gold">{t("add.duplicate")}</p>
           )}
 
           {nearDuplicate && (
             <p className="mt-2 text-[11px] leading-4 text-gold">
-              You already saved {nearDuplicate.address}. Check that this is a
-              different home.
+              {t("add.nearDuplicate", { address: nearDuplicate.address })}
             </p>
           )}
 
@@ -676,21 +686,27 @@ export function AddHomeScreen({
               htmlFor={cityId}
               className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted"
             >
-              City / area <span className="normal-case text-muted/70">(optional)</span>
+              {t("add.city")}{" "}
+              <span className="normal-case text-muted/70">
+                {t("add.optional")}
+              </span>
             </label>
             <input
               id={cityId}
               value={city}
               onChange={(event) => changeCity(event.target.value)}
               type="text"
-              placeholder="e.g. Miami, FL 33137"
+              placeholder={t("add.cityPlaceholder")}
               className={`${fieldClass} mt-2`}
             />
           </div>
 
           <fieldset className="mt-6">
             <legend className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted">
-              Details <span className="normal-case text-muted/70">(optional)</span>
+              {t("add.details")}{" "}
+              <span className="normal-case text-muted/70">
+                {t("add.optional")}
+              </span>
             </legend>
 
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -710,12 +726,14 @@ export function AddHomeScreen({
                 ) : (
                   <SearchIcon className="h-3 w-3" />
                 )}
-                {lookupState === "loading" ? "Looking up…" : "Look up details"}
+                {lookupState === "loading"
+                  ? t("add.lookingUp")
+                  : t("add.lookUp")}
               </button>
 
               {lookupState === "found" && (
                 <span className="text-[10px] text-muted">
-                  Public records found
+                  {t("add.recordsFound")}
                 </span>
               )}
             </div>
@@ -724,51 +742,48 @@ export function AddHomeScreen({
               aria-live="polite"
               className="mt-1 text-[10px] leading-4 text-muted"
             >
-              {lookupState === "idle" &&
-                "Fill in what you know, or look up beds, baths and square footage from public records."}
-              {lookupState === "loading" &&
-                "Searching public records for this address…"}
-              {lookupState === "found" &&
-                "Beds, baths, square footage and lot were prefilled where available. Double-check before saving."}
-              {lookupState === "empty" &&
-                "No public records found for this address. You can still fill in the details manually."}
-              {lookupState === "error" &&
-                "Property details aren't available right now. Fill them in manually or try again."}
+              {lookupState === "idle" && t("add.hintIdle")}
+              {lookupState === "loading" && t("add.hintLoading")}
+              {lookupState === "found" && t("add.hintFound")}
+              {lookupState === "empty" && t("add.hintEmpty")}
+              {lookupState === "error" && t("add.hintError")}
             </p>
 
             {lookupState === "found" && lookupDetails && (
               <div className="mt-3 overflow-hidden rounded-2xl border border-olive/20 bg-olive/[0.06]">
                 <dl
-                  aria-label="Public-record property facts"
+                  aria-label={t("add.factsAria")}
                   className="grid grid-cols-4 divide-x divide-olive/15"
                 >
                   {[
                     {
-                      label: "Beds",
+                      label: t("common.beds"),
                       value:
                         lookupDetails.bedrooms != null
-                          ? String(lookupDetails.bedrooms)
+                          ? number(lookupDetails.bedrooms)
                           : "—",
                     },
                     {
-                      label: "Baths",
+                      label: t("common.baths"),
                       value:
                         lookupDetails.bathrooms != null
-                          ? String(lookupDetails.bathrooms)
+                          ? number(lookupDetails.bathrooms)
                           : "—",
                     },
                     {
-                      label: "Sq ft",
+                      label: t("common.sqft"),
                       value:
                         lookupDetails.squareFootage != null
-                          ? Math.round(
-                              lookupDetails.squareFootage,
-                            ).toLocaleString("en-US")
+                          ? number(Math.round(lookupDetails.squareFootage))
                           : "—",
                     },
                     {
-                      label: "Lot",
-                      value: formatLotSize(lookupDetails.lotSize ?? 0) || "—",
+                      label: t("common.lot"),
+                      value:
+                        formatLotLabel(
+                          formatLotSize(lookupDetails.lotSize ?? 0),
+                          locale,
+                        ) || "—",
                     },
                   ].map((fact) => (
                     <div key={fact.label} className="px-1 py-3 text-center">
@@ -789,8 +804,7 @@ export function AddHomeScreen({
                     </p>
                   )}
                   <p className="mt-1 text-[10px] leading-4 text-muted">
-                    From public records — confirm before saving. The last sale
-                    price is not the current asking price.
+                    {t("add.recordsNote")}
                   </p>
                 </div>
               </div>
@@ -798,7 +812,7 @@ export function AddHomeScreen({
 
             <div className="mt-3 grid grid-cols-2 gap-3">
               <label className="block">
-                <span className="text-[10px] text-muted">Price</span>
+                <span className="text-[10px] text-muted">{t("add.price")}</span>
                 <input
                   value={price}
                   onChange={(event) => setPrice(event.target.value)}
@@ -807,13 +821,15 @@ export function AddHomeScreen({
                   step="any"
                   inputMode="numeric"
                   placeholder="850000"
-                  aria-label="Price"
+                  aria-label={t("add.price")}
                   className={`${fieldClass} mt-1.5`}
                 />
               </label>
 
               <label className="block">
-                <span className="text-[10px] text-muted">Square feet</span>
+                <span className="text-[10px] text-muted">
+                  {t("add.squareFeet")}
+                </span>
                 <input
                   value={sqft}
                   onChange={(event) => setSqft(event.target.value)}
@@ -822,13 +838,13 @@ export function AddHomeScreen({
                   step={1}
                   inputMode="numeric"
                   placeholder="1800"
-                  aria-label="Square feet"
+                  aria-label={t("add.squareFeet")}
                   className={`${fieldClass} mt-1.5`}
                 />
               </label>
 
               <label className="block">
-                <span className="text-[10px] text-muted">Beds</span>
+                <span className="text-[10px] text-muted">{t("add.beds")}</span>
                 <input
                   value={beds}
                   onChange={(event) => setBeds(event.target.value)}
@@ -837,13 +853,13 @@ export function AddHomeScreen({
                   step={1}
                   inputMode="numeric"
                   placeholder="3"
-                  aria-label="Bedrooms"
+                  aria-label={t("common.bedrooms")}
                   className={`${fieldClass} mt-1.5`}
                 />
               </label>
 
               <label className="block">
-                <span className="text-[10px] text-muted">Baths</span>
+                <span className="text-[10px] text-muted">{t("add.baths")}</span>
                 <input
                   value={baths}
                   onChange={(event) => setBaths(event.target.value)}
@@ -852,7 +868,7 @@ export function AddHomeScreen({
                   step={0.5}
                   inputMode="decimal"
                   placeholder="2"
-                  aria-label="Bathrooms"
+                  aria-label={t("common.bathrooms")}
                   className={`${fieldClass} mt-1.5`}
                 />
               </label>
@@ -864,7 +880,7 @@ export function AddHomeScreen({
               role="alert"
               className="mt-5 rounded-2xl border border-gold/35 bg-gold/10 px-4 py-3 text-[11.5px] leading-5 text-ink/85"
             >
-              {error}
+              {t(error)}
             </p>
           )}
 
@@ -874,15 +890,15 @@ export function AddHomeScreen({
             className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-olive py-3.5 text-[13px] font-medium text-cream transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-cream disabled:opacity-60"
           >
             <CheckIcon className="h-4 w-4" />
-            {saving ? "Adding home…" : "Add Home"}
+            {saving ? t("add.adding") : t("add.addHome")}
           </button>
 
           <p className="mt-3 text-center text-[10px] leading-4 text-muted">
             {status === "synced"
-              ? "Saved to your shared shortlist."
+              ? t("add.statusSynced")
               : status === "local"
-                ? "Saved on this device until your shared list reconnects."
-                : "Connecting to your shortlist…"}
+                ? t("add.statusLocal")
+                : t("add.statusConnecting")}
           </p>
         </form>
       </div>
