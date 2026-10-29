@@ -1291,6 +1291,51 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }
   }, [data, ready, status, v2Synced, evaluationsSynced]);
 
+  // Keep separate tabs in sync with the local snapshot. Without this, a tab
+  // that was opened before the active wishlist changed can keep comparing
+  // against the previous wishlist until a full reload.
+  useEffect(() => {
+    if (!ready) return;
+    if (status !== "local" && v2Synced && evaluationsSynced) return;
+
+    const syncFromDevice = () => {
+      const stored = readStored();
+      if (!stored) return;
+      setData((current) => {
+        try {
+          if (JSON.stringify(current) === JSON.stringify(stored)) {
+            return current;
+          }
+        } catch {
+          // Fall through and use the stored snapshot.
+        }
+        return stored;
+      });
+    };
+
+    const onStorage = (event: StorageEvent) => {
+      if (
+        event.key !== STORAGE_KEY &&
+        event.key !== LEGACY_STORAGE_KEY
+      ) {
+        return;
+      }
+      syncFromDevice();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") syncFromDevice();
+    };
+
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [ready, status, v2Synced, evaluationsSynced]);
+
   const pushMutation = useCallback(
     (run: () => PromiseLike<{ error: { message: string } | null }>) => {
       if (!hasSupabaseConfig || status !== "synced") return;

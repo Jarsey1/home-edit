@@ -301,8 +301,18 @@ export function CompareScreen({
 
   const missingInfoRows = useMemo<EvaluationRow[]>(() => {
     if (!missingInfoFor || !activeWishlist) return [];
-    return getEvaluationRows(missingInfoFor, activeWishlist.id, true);
-  }, [activeWishlist, getEvaluationRows, missingInfoFor]);
+    const activeIds = new Set(
+      activeRequirements.map((requirement) => requirement.id),
+    );
+    return getEvaluationRows(missingInfoFor, activeWishlist.id, true).filter(
+      (row) => activeIds.has(row.requirement.id),
+    );
+  }, [
+    activeRequirements,
+    activeWishlist,
+    getEvaluationRows,
+    missingInfoFor,
+  ]);
 
   const summary = useMemo(
     () =>
@@ -1235,7 +1245,17 @@ export function CompareScreen({
         entry={entries.find((entry) => entry.home.id === missingInfoFor) ?? null}
         rows={missingInfoRows}
         hasScoreableRequirements={hasScoredRequirements}
+        wishlistName={activeName}
+        requirementCount={
+          activeRequirements.filter(
+            (requirement) => requirement.importance !== "ignore",
+          ).length
+        }
         onClose={() => setMissingInfoFor(null)}
+        onOpenWishlist={() => {
+          setMissingInfoFor(null);
+          onOpenWishlist();
+        }}
         onEditRequirement={(requirementId) => {
           setMissingInfoFor(null);
           onOpenRequirement(requirementId);
@@ -1330,7 +1350,10 @@ function MissingInfoSheet({
   entry,
   rows,
   hasScoreableRequirements,
+  wishlistName,
+  requirementCount,
   onClose,
+  onOpenWishlist,
   onEditProperty,
   onEditRequirement,
   onActivate,
@@ -1340,7 +1363,10 @@ function MissingInfoSheet({
   entry: CompareEntry | null;
   rows: EvaluationRow[];
   hasScoreableRequirements: boolean;
+  wishlistName: string;
+  requirementCount: number;
   onClose: () => void;
+  onOpenWishlist: () => void;
   onEditProperty: (homeId: string, featureKey?: string) => void;
   onEditRequirement: (requirementId: string) => void;
   onActivate: (
@@ -1441,6 +1467,22 @@ function MissingInfoSheet({
             percent: Math.round(entry.score.coverage),
           })}
         </span>
+      </div>
+
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <p className="min-w-0 text-[9.5px] leading-4 text-muted">
+          {t("compare.fromWishlist", {
+            name: wishlistName,
+            count: requirementCount,
+          })}
+        </p>
+        <button
+          type="button"
+          onClick={onOpenWishlist}
+          className="min-h-8 shrink-0 rounded-full border border-line bg-white/70 px-2.5 text-[9px] font-medium text-olive"
+        >
+          {t("compare.changeWishlist")}
+        </button>
       </div>
 
       {readyIds.length > 0 && (
