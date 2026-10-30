@@ -29,6 +29,20 @@ This creates `public.account_snapshots` and its four per-user RLS policies.
 It does not modify or delete the existing `homes`, `wishlist_items`, tour notes
 or comparison notes.
 
+## Optional: Google sign-in
+
+The Account screen also supports Google SSO:
+
+1. Enable the Google provider in **Supabase → Authentication → Providers**.
+2. Use the Google OAuth client redirect URI:
+   `https://upkiivhuxgvrjtkorvbi.supabase.co/auth/v1/callback`
+3. Add the app URL to **Authentication → URL Configuration**.
+
+The app sends Google users back to `window.location.origin`, then the existing
+session listener starts account sync. On iOS, Google may finish in Safari rather
+than the home-screen app; if the standalone app remains signed out, use the
+email/password option there.
+
 ## 3. Seed the account from the device that has the correct data
 
 Do this first on the browser where the wishlist is correct:

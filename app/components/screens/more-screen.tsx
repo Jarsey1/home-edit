@@ -51,6 +51,7 @@ export function MoreScreen({
     accountSynced,
     accountSyncError,
     signIn,
+    signInWithGoogle,
     signUp,
     signOut,
   } = useAppData();
@@ -60,6 +61,17 @@ export function MoreScreen({
   const [password, setPassword] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
+
+  async function googleSignIn() {
+    if (authBusy) return;
+    setAuthBusy(true);
+    setAuthMessage("");
+    const result = await signInWithGoogle();
+    setAuthBusy(false);
+    if (!result.ok) {
+      setAuthMessage(result.error ?? t("more.accountError"));
+    }
+  }
 
   async function submitAccount(mode: "signin" | "signup") {
     if (authBusy) return;
@@ -270,6 +282,22 @@ export function MoreScreen({
                     void submitAccount("signin");
                   }}
                 >
+                  <button
+                    type="button"
+                    onClick={() => void googleSignIn()}
+                    disabled={authBusy}
+                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-line bg-white/80 px-4 text-[11px] font-medium text-ink transition-colors hover:bg-white disabled:opacity-50"
+                  >
+                    <GoogleMark />
+                    {t("more.continueGoogle")}
+                  </button>
+                  <div className="my-3 flex items-center gap-2" aria-hidden="true">
+                    <span className="h-px flex-1 bg-line" />
+                    <span className="text-[9px] uppercase tracking-[0.12em] text-muted">
+                      {t("more.or")}
+                    </span>
+                    <span className="h-px flex-1 bg-line" />
+                  </div>
                   <label htmlFor="account-email" className="sr-only">
                     {t("more.email")}
                   </label>
@@ -412,6 +440,33 @@ export function MoreScreen({
         </p>
       </div>
     </div>
+  );
+}
+
+function GoogleMark() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4 shrink-0"
+    >
+      <path
+        fill="#4285F4"
+        d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.9-1.75 2.98-4.33 2.98-7.36Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 22c2.7 0 4.96-.9 6.62-2.41l-3.24-2.51c-.9.6-2.05.96-3.38.96-2.6 0-4.8-1.76-5.59-4.12H3.06v2.59A10 10 0 0 0 12 22Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M6.41 13.92A6.01 6.01 0 0 1 6.1 12c0-.67.11-1.32.31-1.92V7.49H3.06A10 10 0 0 0 2 12c0 1.61.39 3.14 1.06 4.51l3.35-2.59Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 5.96c1.47 0 2.79.5 3.82 1.49l2.87-2.87A9.6 9.6 0 0 0 12 2a10 10 0 0 0-8.94 5.49l3.35 2.59C7.2 7.72 9.4 5.96 12 5.96Z"
+      />
+    </svg>
   );
 }
 

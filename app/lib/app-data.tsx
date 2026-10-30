@@ -176,6 +176,7 @@ type AppData = Snapshot & {
     email: string,
     password: string,
   ) => Promise<{ ok: boolean; error?: string; confirmationRequired?: boolean }>;
+  signInWithGoogle: () => Promise<{ ok: boolean; error?: string }>;
   signUp: (
     email: string,
     password: string,
@@ -1166,6 +1167,20 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
+    });
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }, []);
+
+  const signInWithGoogle = useCallback(async () => {
+    if (!supabase) {
+      return { ok: false, error: "Account sync is not configured." };
+    }
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo:
+          typeof window === "undefined" ? undefined : window.location.origin,
+      },
     });
     return error ? { ok: false, error: error.message } : { ok: true };
   }, []);
@@ -2948,6 +2963,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       accountSynced,
       accountSyncError,
       signIn,
+      signInWithGoogle,
       signUp,
       signOut,
       v2Synced,
@@ -3048,6 +3064,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     accountSynced,
     accountSyncError,
     signIn,
+    signInWithGoogle,
     signUp,
     signOut,
     v2Synced,
