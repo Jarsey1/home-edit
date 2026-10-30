@@ -199,8 +199,17 @@ export function RequirementEditor({
       }
       onClose={onClose}
       footer={
-        <div className="flex items-center gap-2">
-          {requirement && (
+        <div>
+          {error && (
+            <p
+              role="alert"
+              className="mb-2 text-center text-[11px] leading-4 text-gold"
+            >
+              {error}
+            </p>
+          )}
+          <div className="flex items-center gap-2">
+            {requirement && (
             <button
               type="button"
               onClick={remove}
@@ -210,13 +219,14 @@ export function RequirementEditor({
               <TrashIcon className="h-4 w-4" />
             </button>
           )}
-          <button
-            type="button"
-            onClick={save}
-            className="min-h-11 flex-1 rounded-full bg-olive px-4 text-[13px] font-medium text-cream transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
-          >
-            {t("wishlist.saveRequirement")}
-          </button>
+            <button
+              type="button"
+              onClick={save}
+              className="min-h-11 flex-1 rounded-full bg-olive px-4 text-[13px] font-medium text-cream transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
+            >
+              {t("wishlist.saveRequirement")}
+            </button>
+          </div>
         </div>
       }
     >
@@ -482,12 +492,6 @@ export function RequirementEditor({
         <p className="rounded-2xl bg-parchment px-4 py-3 text-[10.5px] leading-4 text-muted">
           {t("wishlist.rulesBody")}
         </p>
-
-        {error && (
-          <p role="alert" className="text-[11px] text-gold">
-            {error}
-          </p>
-        )}
 
         {editing && requirement && (
           <p className="text-[10px] text-muted">
