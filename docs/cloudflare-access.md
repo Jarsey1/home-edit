@@ -1,5 +1,11 @@
 # Cloudflare Access
 
+Use a Cloudflare Quick Tunnel for temporary access, or deploy to Cloudflare
+Workers for a permanent URL that does not depend on the Mac. See
+[`cloudflare-workers.md`](./cloudflare-workers.md) for the deployment steps.
+
+## Temporary Quick Tunnel
+
 Use a Cloudflare Quick Tunnel to open the locally running app from any network
 without deploying it.
 

@@ -17,10 +17,7 @@ const playfair = Playfair_Display({
   weight: ["400", "500", "600"],
 });
 
-// The language cookie decides <html lang> before paint, so this route can
-// block rather than prerendering a shell in the wrong language.
-export const instant = false;
-
+// The language cookie decides <html lang> before paint.
 export const metadata: Metadata = {
   title: "The Next Home Edit",
   description: "Your home search, organized.",
