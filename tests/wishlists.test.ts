@@ -17,6 +17,7 @@ describe("wishlist management", () => {
     name: "Our Next Home",
     isActive: true,
     budget: 900_000,
+    excludedCities: [],
     createdAt: "",
     updatedAt: "",
   };
@@ -124,6 +125,7 @@ describe("wishlist management", () => {
       name: "Investment Property",
       isActive: true,
       budget: null,
+      excludedCities: [],
       createdAt: "",
       updatedAt: "",
     };

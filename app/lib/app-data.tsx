@@ -22,6 +22,7 @@ import { budgetEstimateInfo, type BudgetEstimateInfo } from "./budget-estimate";
 import { calculateBudget, inputsForProperty } from "./finance";
 import { homePatchToRow, type Home } from "./homes";
 import { factsFromHome } from "./property-facts";
+import { excludedCityKey, normalizeRegion } from "./locations";
 import { isRequirementComplete } from "./requirement-config";
 import {
   buildEvaluationRows,
@@ -64,6 +65,7 @@ import {
   activeWishlist as pickActiveWishlist,
   createRequirement,
   createWishlist,
+  newId,
   defaultRequirements,
   duplicateWishlist,
   nowIso,
@@ -73,7 +75,6 @@ import {
   upgradeImportedRequirement,
   wishlistSetupProgress,
 } from "./wishlists";
-import { newId } from "./wishlists";
 
 type Snapshot = {
   homes: Home[];
@@ -182,6 +183,11 @@ type AppData = Snapshot & {
     password: string,
   ) => Promise<{ ok: boolean; error?: string; confirmationRequired?: boolean }>;
   signOut: () => Promise<void>;
+  updateDisplayName: (
+    name: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  sendPasswordReset: () => Promise<{ ok: boolean; error?: string }>;
+  deleteAccount: () => Promise<{ ok: boolean; error?: string }>;
   v2Synced: boolean;
   saving: boolean;
   topMatch: Home;
@@ -268,6 +274,11 @@ type AppData = Snapshot & {
     patch: Partial<WishlistRequirement>,
   ) => void;
   removeRequirement: (requirementId: string) => void;
+  addExcludedCity: (
+    wishlistId: string,
+    input: { city: string; region: string; country: string },
+  ) => { ok: boolean; reason?: "invalid" | "duplicate" | "missing" };
+  removeExcludedCity: (wishlistId: string, cityId: string) => void;
   activateRequirements: (
     requirementIds: string[],
   ) => Promise<{ ok: boolean; count: number; error?: string }>;
@@ -339,6 +350,7 @@ function seedV2(
     name: "Our Next Home",
     isActive: true,
     budget: null,
+    excludedCities: [],
     createdAt: "",
     updatedAt: "",
   };
@@ -407,6 +419,35 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function normalizeWishlist(value: unknown): Wishlist | null {
   if (!isObject(value) || typeof value.id !== "string") return null;
+  const excludedCities = Array.isArray(value.excludedCities)
+    ? value.excludedCities
+        .filter((city): city is Record<string, unknown> => isObject(city))
+        .map((city, index) => {
+          const cityName = typeof city.city === "string" ? city.city.trim() : "";
+          const region = normalizeRegion(
+            typeof city.region === "string" ? city.region : "",
+          );
+          const country =
+            typeof city.country === "string" && city.country.trim()
+              ? city.country.trim()
+              : "United States";
+          const key = excludedCityKey(cityName, region, country);
+          if (!cityName || !key) return null;
+          return {
+            id:
+              typeof city.id === "string" && city.id
+                ? city.id
+                : `city-${index}-${key}`,
+            city: cityName,
+            region,
+            country,
+            key,
+            createdAt:
+              typeof city.createdAt === "string" ? city.createdAt : "",
+          };
+        })
+        .filter((city): city is NonNullable<typeof city> => Boolean(city))
+    : [];
   return {
     id: value.id,
     name: typeof value.name === "string" && value.name.trim() ? value.name : "Our Next Home",
@@ -415,6 +456,7 @@ function normalizeWishlist(value: unknown): Wishlist | null {
       typeof value.budget === "number" && Number.isFinite(value.budget)
         ? value.budget
         : null,
+    excludedCities,
     createdAt: typeof value.createdAt === "string" ? value.createdAt : "",
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : "",
   };
@@ -905,6 +947,7 @@ function mapWishlistV2Row(row: WishlistV2Row): Wishlist {
     isActive: row.is_active,
     budget:
       row.budget === null || row.budget === undefined ? null : Number(row.budget),
+    excludedCities: [],
     createdAt: row.created_at ?? "",
     updatedAt: row.updated_at ?? "",
   };
@@ -1082,6 +1125,27 @@ function factPatchFor(featureKey: string, value: FactValue) {
   }
 }
 
+function exclusionRequirement(wishlist: Wishlist): WishlistRequirement | null {
+  const cities = wishlist.excludedCities ?? [];
+  if (cities.length === 0) return null;
+  return {
+    id: `excluded-cities-${wishlist.id}`,
+    wishlistId: wishlist.id,
+    category: "location",
+    name: "Cities to avoid",
+    featureKey: "excludedCity",
+    type: "exclude",
+    expectedValue: { values: cities.map((city) => city.key) },
+    importance: "dealbreaker",
+    weight: null,
+    configured: true,
+    position: -1,
+    createdAt: "",
+    updatedAt: "",
+    custom: false,
+  };
+}
+
 function mergeDetails(home: Home, details: PropertyDetails | undefined): Home {
   if (!details) {
     return {
@@ -1195,6 +1259,59 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     });
     if (error) return { ok: false, error: error.message };
     return { ok: true, confirmationRequired: !created.session };
+  }, []);
+
+  const updateDisplayName = useCallback(
+    async (name: string) => {
+      if (!supabase) {
+        return { ok: false, error: "Account sync is not configured." };
+      }
+      const trimmed = name.trim();
+      if (!trimmed) return { ok: false, error: "Enter a display name." };
+      const { error } = await supabase.auth.updateUser({
+        data: { display_name: trimmed },
+      });
+      return error ? { ok: false, error: error.message } : { ok: true };
+    },
+    [],
+  );
+
+  const sendPasswordReset = useCallback(async () => {
+    if (!supabase || !user?.email) {
+      return { ok: false, error: "No email account is available." };
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+      redirectTo:
+        typeof window === "undefined"
+          ? undefined
+          : `${window.location.origin}/reset-password`,
+    });
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }, [user]);
+
+  const deleteAccount = useCallback(async () => {
+    if (!supabase) {
+      return { ok: false, error: "Account deletion is not configured." };
+    }
+    const { data: session } = await supabase.auth.getSession();
+    const token = session.session?.access_token;
+    if (!token) return { ok: false, error: "Sign in again to delete the account." };
+    const response = await fetch("/api/account/delete", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: payload.error ?? "Account deletion could not be completed.",
+      };
+    }
+    setData(defaultSnapshot());
+    await supabase.auth.signOut();
+    return { ok: true };
   }, []);
 
   const signOut = useCallback(async () => {
@@ -2403,6 +2520,71 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [data.evaluations, ownerId, pushEvaluation],
   );
 
+  const addExcludedCity = useCallback(
+    (
+      wishlistId: string,
+      input: { city: string; region: string; country: string },
+    ): { ok: boolean; reason?: "invalid" | "duplicate" | "missing" } => {
+      const wishlist = data.wishlists.find((entry) => entry.id === wishlistId);
+      if (!wishlist) return { ok: false, reason: "missing" };
+      const city = input.city.trim();
+      const region = normalizeRegion(input.region);
+      const country = input.country.trim() || "United States";
+      const key = excludedCityKey(city, region, country);
+      if (!city || !region || !key) return { ok: false, reason: "invalid" };
+      if (
+        (wishlist.excludedCities ?? []).some((entry) => entry.key === key)
+      ) {
+        return { ok: false, reason: "duplicate" };
+      }
+      const timestamp = nowIso();
+      const updated: Wishlist = {
+        ...wishlist,
+        excludedCities: [
+          ...(wishlist.excludedCities ?? []),
+          {
+            id: newId("city"),
+            city,
+            region,
+            country,
+            key,
+            createdAt: timestamp,
+          },
+        ],
+        updatedAt: timestamp,
+      };
+      setData((current) => ({
+        ...current,
+        wishlists: current.wishlists.map((entry) =>
+          entry.id === wishlistId ? updated : entry,
+        ),
+      }));
+      return { ok: true };
+    },
+    [data.wishlists],
+  );
+
+  const removeExcludedCity = useCallback(
+    (wishlistId: string, cityId: string) => {
+      const wishlist = data.wishlists.find((entry) => entry.id === wishlistId);
+      if (!wishlist) return;
+      const updated: Wishlist = {
+        ...wishlist,
+        excludedCities: (wishlist.excludedCities ?? []).filter(
+          (entry) => entry.id !== cityId,
+        ),
+        updatedAt: nowIso(),
+      };
+      setData((current) => ({
+        ...current,
+        wishlists: current.wishlists.map((entry) =>
+          entry.id === wishlistId ? updated : entry,
+        ),
+      }));
+    },
+    [data.wishlists],
+  );
+
   const activateRequirements = useCallback(
     async (
       requirementIds: string[],
@@ -2823,7 +3005,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const activeRequirements = requirementsFor(
       data.requirements,
       active?.id ?? null,
-    );
+    ).filter((requirement) => requirement.featureKey !== "excludedCity");
+    const exclusion = active ? exclusionRequirement(active) : null;
+    const scoringRequirements = exclusion
+      ? [...activeRequirements, exclusion]
+      : activeRequirements;
     const progress = wishlistSetupProgress(activeRequirements);
     const savedHomes = data.homes.filter((home) => home.saved);
 
@@ -2878,7 +3064,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         active?.id ?? "",
       );
       const score = scoreRequirements(
-        activeRequirements,
+        scoringRequirements,
         facts,
         DEFAULT_WEIGHTS,
         { manual },
@@ -2966,6 +3152,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       signInWithGoogle,
       signUp,
       signOut,
+      updateDisplayName,
+      sendPasswordReset,
+      deleteAccount,
       v2Synced,
       saving: pendingWrites > 0,
       topMatch,
@@ -3004,7 +3193,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         );
         if (!entry) return [];
         return buildEvaluationRows(
-          requirementsFor(data.requirements, wishlistId),
+          requirementsFor(data.requirements, wishlistId).filter(
+            (requirement) => requirement.featureKey !== "excludedCity",
+          ),
           entry.facts,
           data.evaluations,
           homeId,
@@ -3045,6 +3236,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       addRequirement,
       updateRequirement,
       removeRequirement,
+      addExcludedCity,
+      removeExcludedCity,
       activateRequirements,
       bulkSetImportance,
       bulkRemoveRequirements,
@@ -3067,6 +3260,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     signInWithGoogle,
     signUp,
     signOut,
+    updateDisplayName,
+    sendPasswordReset,
+    deleteAccount,
     v2Synced,
     evaluationsSynced,
     pendingWrites,
@@ -3089,6 +3285,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     addRequirement,
     updateRequirement,
     removeRequirement,
+    addExcludedCity,
+    removeExcludedCity,
     activateRequirements,
     bulkSetImportance,
     bulkRemoveRequirements,

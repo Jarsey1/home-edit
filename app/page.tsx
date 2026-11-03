@@ -5,12 +5,14 @@ import { BottomNav, type TabId } from "./components/bottom-nav";
 import { Dashboard } from "./components/dashboard";
 import { AddHomeScreen } from "./components/screens/add-home-screen";
 import { BudgetScreen } from "./components/screens/budget-screen";
+import { CitiesScreen } from "./components/screens/cities-screen";
 import { CompareScreen } from "./components/screens/compare-screen";
 import { EditPropertyScreen } from "./components/screens/edit-property-screen";
 import { EvaluateScreen } from "./components/screens/evaluate-screen";
 import { MoreScreen } from "./components/screens/more-screen";
 import { NeighborhoodScreen } from "./components/screens/neighborhood-screen";
 import { PropertyScreen } from "./components/screens/property-screen";
+import { SettingsScreen } from "./components/screens/settings-screen";
 import { TourNotesScreen } from "./components/screens/tour-notes-screen";
 import { WishlistScreen } from "./components/screens/wishlist-screen";
 import { useAppData } from "./lib/app-data";
@@ -25,12 +27,14 @@ type Overlay =
         | "neighborhood"
         | "edit-home"
         | "budget-property"
-        | "evaluate";
+        | "evaluate"
+        | "cities";
       homeId: string;
       featureKey?: string;
     }
   | { type: "add-home" }
-  | { type: "budget" };
+  | { type: "budget" }
+  | { type: "settings" };
 
 type OverlayType = Exclude<Overlay["type"], "add-home" | "budget">;
 
@@ -98,6 +102,10 @@ export default function HomeApp() {
           )}
 
           {overlay.type === "budget" && <BudgetScreen onBack={goBack} />}
+
+          {overlay.type === "cities" && <CitiesScreen onBack={goBack} />}
+
+          {overlay.type === "settings" && <SettingsScreen onBack={goBack} />}
 
           {"homeId" in overlay && overlayHome && (
             <>
@@ -220,6 +228,8 @@ export default function HomeApp() {
                 }
                 pushOverlay("neighborhood", topMatch.id);
               }}
+              onOpenCities={() => pushOverlay("cities", topMatch.id)}
+              onOpenSettings={() => setOverlays([{ type: "settings" }])}
             />
           )}
         </div>
