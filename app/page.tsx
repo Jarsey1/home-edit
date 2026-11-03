@@ -14,6 +14,8 @@ import { PropertyScreen } from "./components/screens/property-screen";
 import { TourNotesScreen } from "./components/screens/tour-notes-screen";
 import { WishlistScreen } from "./components/screens/wishlist-screen";
 import { useAppData } from "./lib/app-data";
+import { buildInfo } from "./lib/build-info";
+import { useI18n } from "./lib/i18n";
 
 type Overlay =
   | {
@@ -34,6 +36,7 @@ type OverlayType = Exclude<Overlay["type"], "add-home" | "budget">;
 
 export default function HomeApp() {
   const { homes, topMatch } = useAppData();
+  const { t } = useI18n();
   const [tab, setTab] = useState<TabId>("home");
   const [overlays, setOverlays] = useState<Overlay[]>([]);
   const [wishlistFocus, setWishlistFocus] = useState<string | null>(null);
@@ -76,6 +79,17 @@ export default function HomeApp() {
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-cream sm:my-7 sm:min-h-[calc(100dvh-3.5rem)] sm:rounded-[40px] sm:border sm:border-line sm:shadow-[0_40px_90px_-35px_rgba(53,48,38,0.45)]">
+      {buildInfo.environment === "staging" && (
+        <div
+          role="note"
+          className="mx-4 mt-3 rounded-xl border border-gold/35 bg-gold/10 px-3 py-2 text-[9.5px] leading-4 text-[#6b5535]"
+        >
+          <span className="mr-1 font-semibold uppercase tracking-[0.08em]">
+            {t("staging.badge")}
+          </span>{" "}
+          {t("staging.warning")}
+        </div>
+      )}
       <main className="flex flex-1 flex-col">
       {overlay ? (
         <>

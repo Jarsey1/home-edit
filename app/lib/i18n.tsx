@@ -303,6 +303,9 @@ export const en = {
   "more.settings": "Settings",
   "more.settingsDetail": "Notifications, account and appearance",
   "more.soon": "Soon",
+  "staging.badge": "Staging",
+  "staging.warning":
+    "Use test data only. This app is publicly reachable until Cloudflare Access or a custom domain is added.",
   "more.about": "About",
   "more.environment": "Environment",
   "more.environment.production": "Production",
@@ -1248,6 +1251,9 @@ const es: Record<TranslationKey, string> = {
   "more.settings": "Ajustes",
   "more.settingsDetail": "Notificaciones, cuenta y apariencia",
   "more.soon": "Pronto",
+  "staging.badge": "Pruebas",
+  "staging.warning":
+    "Usa solo datos de prueba. Esta app es accesible públicamente hasta que se añada Cloudflare Access o un dominio personalizado.",
   "more.about": "Acerca de",
   "more.environment": "Entorno",
   "more.environment.production": "Producción",
