@@ -13,7 +13,7 @@
     "preview:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "ci": "npm run lint && npm run typecheck && npm test",
     "build:cloudflare:checked": "npm run ci && npm run build:cloudflare"
   },
