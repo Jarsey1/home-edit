@@ -17,7 +17,7 @@ Last inspected: November 2, 2026
 | Supabase staging | Not created yet |
 | Authentication | Email/password and Google OAuth |
 | Tests | Vitest: 89 tests; ESLint; `tsc --noEmit`; Next/OpenNext production build |
-| CI/CD before this setup | No GitHub Actions, no required checks, no branch protection |
+| CI/CD before this setup | No GitHub Actions or required checks; branch protection was applied during setup |
 | Build information | Added to More → About; injected at build time |
 
 Production currently deploys automatically after a push or merge to `main`.
@@ -30,7 +30,7 @@ reviewed.
 feature/<task>  ->  develop  ->  main
 ```
 
-- **main** — production only. Protected; pull request + approval + CI.
+- **main** — production only. Protected; pull request + CI + manual merge approval.
 - **develop** — integration and staging. Deploys to the staging Worker.
 - **feature branches** — created from `develop`, one task each.
 - `v2.1` is retained as a historical branch but is no longer a deployment
@@ -51,7 +51,7 @@ Configure this in **GitHub → Settings → Branches** (public repository, free)
 ### `main`
 
 - Require a pull request before merging.
-- Require **1 approval**.
+- Require a pull request. This single-owner repository uses **0 required approvals** so the owner is not locked out; the product-owner approval is the explicit merge action. If a second GitHub reviewer is added, raise this to **1 approval**.
 - Dismiss stale approvals when new commits are pushed.
 - Require the **CI / Lint, typecheck, test and build** status check.
 - Require conversation resolution.
@@ -251,8 +251,8 @@ No paid service is required for the initial setup.
 
 ## Manual setup checklist
 
-- [ ] Create `develop` branch (done in repository).
-- [ ] Protect `main` and `develop` as described above.
+- [x] Create `develop` branch (done in repository).
+- [x] Protect `main` and `develop` as described above.
 - [ ] Create the `home-edit-staging` Worker from `develop`.
 - [ ] Create the staging Supabase project and run `0004`.
 - [ ] Add staging environment variables.
