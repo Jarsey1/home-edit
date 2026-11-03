@@ -32,6 +32,7 @@ export function createWishlist(
     name: name.trim(),
     isActive: options.active ?? false,
     budget: options.budget ?? null,
+    excludedCities: [],
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -592,6 +593,11 @@ export function duplicateWishlist(
   name: string,
 ): { wishlist: Wishlist; requirements: WishlistRequirement[] } {
   const wishlist = createWishlist(name, { active: false, budget: source.budget });
+  wishlist.excludedCities = (source.excludedCities ?? []).map((city) => ({
+    ...city,
+    id: newId("city"),
+    createdAt: nowIso(),
+  }));
   const copies = sortRequirements(
     requirements.filter((requirement) => requirement.wishlistId === source.id),
   ).map((requirement, index) =>

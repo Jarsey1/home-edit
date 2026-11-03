@@ -216,7 +216,16 @@ export function evaluateRequirement(
   }
 
   if (type === "exclude") {
-    const excluded = textValues(expected).map((entry) => entry.toLowerCase());
+    const expectedValues =
+      expected &&
+      typeof expected === "object" &&
+      !Array.isArray(expected) &&
+      "values" in expected
+        ? (expected as { values: unknown }).values
+        : expected;
+    const excluded = textValues(expectedValues).map((entry) =>
+      entry.toLowerCase(),
+    );
     if (excluded.length === 0) return "unknown";
     const actualText = normalize(actual);
     if (!actualText) return "unknown";

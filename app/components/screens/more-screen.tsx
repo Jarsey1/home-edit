@@ -41,12 +41,16 @@ export function MoreScreen({
   onOpenBudget,
   onOpenTour,
   onOpenNeighborhood,
+  onOpenCities,
+  onOpenSettings,
 }: {
   onOpenHomes: () => void;
   onOpenWishlist: () => void;
   onOpenBudget: () => void;
   onOpenTour: () => void;
   onOpenNeighborhood: () => void;
+  onOpenCities: () => void;
+  onOpenSettings: () => void;
 }) {
   const {
     savedCount,
@@ -139,6 +143,23 @@ export function MoreScreen({
       onClick: onOpenNeighborhood,
     },
     {
+      label: t("more.cities"),
+      detail: activeWishlist
+        ? t("more.citiesDetailCount", {
+            count: activeWishlist.excludedCities?.length ?? 0,
+            name: translateWishlistName(activeWishlist.name, locale),
+          })
+        : t("more.citiesDetail"),
+      Icon: MapPinIcon,
+      onClick: onOpenCities,
+    },
+    {
+      label: t("more.settings"),
+      detail: t("more.settingsDetail"),
+      Icon: SettingsIcon,
+      onClick: onOpenSettings,
+    },
+    {
       label: t("more.budget"),
       detail: t("more.budgetDetail"),
       Icon: BudgetIcon,
@@ -157,18 +178,6 @@ export function MoreScreen({
       label: t("more.documents"),
       detail: t("more.documentsDetail"),
       Icon: DocumentIcon,
-      badge: t("more.soon"),
-    },
-    {
-      label: t("more.cities"),
-      detail: t("more.citiesDetail"),
-      Icon: SparkleIcon,
-      badge: t("more.soon"),
-    },
-    {
-      label: t("more.settings"),
-      detail: t("more.settingsDetail"),
-      Icon: SettingsIcon,
       badge: t("more.soon"),
     },
   ];
