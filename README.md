@@ -70,8 +70,9 @@ Built with Next.js (App Router), React, Tailwind CSS and Supabase.
 ## How data works
 
 - Every device points at the same Supabase project, so the dataset is shared.
-- There is **no login**. The anon/publishable key can read and write all rows.
-  Keep the deployment private, or add Supabase Auth before sharing it widely.
+- Account sync uses Supabase Auth (email/password or Google). Each signed-in
+  user has one private snapshot protected by RLS; the legacy shared `homes`
+  table is still shared between accounts.
 - If `.env.local` is missing or Supabase is unreachable, the app falls back to
   `localStorage` and keeps working on that device. The More screen shows whether
   data is synced or device-only.
@@ -240,21 +241,25 @@ Local data is never deleted by the app when migrations are applied. Back up
 `localStorage` before applying `0002`/`0003` if the device already contains
 V2/V2.1 data.
 
-## Cloudflare deployment
+## Cloudflare deployment and CI/CD
 
-The app is a standard Next.js App Router project and can be deployed to
-Cloudflare Workers with the OpenNext adapter, or to Cloudflare Pages with a
-Workers-backed Next runtime. Keep the Supabase URL and anon key as public
-build/runtime variables; never expose a service-role key. The free Miami-Dade
-and Photon lookups are server routes and need the Node/Workers runtime
-available. Verify that the chosen adapter supports the App Router route
-handlers before switching production traffic. Do not deploy until the
-migrations and RLS strategy are approved.
+The app runs on Cloudflare Workers with the OpenNext adapter. Keep the Supabase
+URL and publishable key as public build/runtime variables; never expose a
+service-role key.
+
+- Existing Worker: `https://home-edit.jarsey1.workers.dev`
+- Configuration: [`wrangler.jsonc`](wrangler.jsonc)
+- Staging configuration: [`wrangler.staging.jsonc`](wrangler.staging.jsonc)
+- Setup, branching, approval and rollback: [`docs/ci-cd.md`](docs/ci-cd.md)
+- Cloudflare deployment details: [`docs/cloudflare-workers.md`](docs/cloudflare-workers.md)
+
+Production deploys from `main`; staging deploys from `develop`. Do not merge to
+`main` without the required approval and passing CI checks.
 
 ## Tests
 
 ```bash
-npm test        # 69 deterministic unit tests (Vitest)
+npm test        # 89 deterministic unit tests (Vitest)
 npm run lint    # ESLint
 npm run build   # production build
 ```
