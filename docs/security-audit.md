@@ -42,8 +42,11 @@ are **not** fully isolated per user:
 
 - `homes` — shared saved properties.
 - `wishlist_items` — legacy checklist used only to seed V2 data.
-- `tour_notes` and `comparison_notes` — shared notes.
-- `budget_settings` — shared legacy budget defaults.
+- `tour_notes` and `comparison_notes` — legacy shared notes. Signed-in note
+  writes now stay in the private account snapshot; legacy shared rows can still
+  be read during the first account seed.
+- `budget_settings` — legacy shared budget defaults. Signed-in budget changes
+  now stay in the private account snapshot.
 
 No shared row was migrated into a personal account. No RLS policy on those
 tables was changed.

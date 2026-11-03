@@ -624,8 +624,8 @@ export function CompareScreen({
           !parsePropertyLocation(entry.home.city).verified
         ) {
           return (
-            <span className="inline-flex items-center gap-1 text-[9px] text-muted">
-              <QuestionIcon className="h-3.5 w-3.5" />
+            <span className="inline-flex items-start gap-1 text-[8.5px] leading-3 text-muted">
+              <QuestionIcon className="mt-0.5 h-3 w-3 shrink-0" />
               {t("compare.locationVerify")}
             </span>
           );

@@ -617,6 +617,9 @@ function accountSnapshot(snapshot: Snapshot) {
     details: snapshot.details,
     scenarios: snapshot.scenarios,
     evaluations: snapshot.evaluations,
+    tourNotes: snapshot.tourNotes,
+    comparisonNotes: snapshot.comparisonNotes,
+    budget: snapshot.budget,
   };
 }
 
@@ -669,6 +672,15 @@ function applyAccountSnapshot(
     profile: isObject(payload.profile)
       ? { ...current.profile, ...(payload.profile as Partial<UserProfile>) }
       : current.profile,
+    tourNotes: isObject(payload.tourNotes)
+      ? (payload.tourNotes as Record<string, TourNote>)
+      : current.tourNotes,
+    comparisonNotes: Array.isArray(payload.comparisonNotes)
+      ? (payload.comparisonNotes as ComparisonNote[])
+      : current.comparisonNotes,
+    budget: isObject(payload.budget)
+      ? { ...current.budget, ...(payload.budget as Partial<BudgetSettings>) }
+      : current.budget,
     wishlists: wishlists.map((wishlist) => ({
       ...wishlist,
       isActive: wishlist.id === activeId,
@@ -2861,13 +2873,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         ...current,
         tourNotes: { ...current.tourNotes, [homeId]: note },
       }));
-      pushMutation(() =>
-        supabase!
-          .from("tour_notes")
-          .upsert(toTourNoteRow(note), { onConflict: "home_id" }),
-      );
+      if (!user) {
+        pushMutation(() =>
+          supabase!
+            .from("tour_notes")
+            .upsert(toTourNoteRow(note), { onConflict: "home_id" }),
+        );
+      }
     },
-    [pushMutation],
+    [pushMutation, user],
   );
 
   const updateBudget = useCallback(
@@ -2877,7 +2891,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         ...current,
         budget: { ...current.budget, ...patch },
       }));
-      if (!hasSupabaseConfig || status !== "synced") return;
+      if (user || !hasSupabaseConfig || status !== "synced") return;
       if (budgetTimer.current) clearTimeout(budgetTimer.current);
       budgetTimer.current = setTimeout(() => {
         void supabase!
@@ -2885,7 +2899,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           .upsert(toBudgetRow(nextBudget), { onConflict: "id" });
       }, 500);
     },
-    [data.budget, status],
+    [data.budget, status, user],
   );
 
   const addComparisonNote = useCallback(
@@ -2901,15 +2915,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         ...current,
         comparisonNotes: [...current.comparisonNotes, note],
       }));
-      pushMutation(() =>
-        supabase!.from("comparison_notes").insert({
-          id: note.id,
-          body: note.body,
-          created_at: note.createdAt,
-        }),
-      );
+      if (!user) {
+        pushMutation(() =>
+          supabase!.from("comparison_notes").insert({
+            id: note.id,
+            body: note.body,
+            created_at: note.createdAt,
+          }),
+        );
+      }
     },
-    [pushMutation],
+    [pushMutation, user],
   );
 
   const saveScenarioInputs = useCallback(
