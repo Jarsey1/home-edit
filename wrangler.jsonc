@@ -3,7 +3,10 @@
   "main": ".open-next/worker.js",
   "name": "home-edit",
   "compatibility_date": "2026-10-30",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
@@ -16,5 +19,7 @@
   ],
   "observability": {
     "enabled": true
-  }
+  },
+  "workers_dev": true,
+  "preview_urls": false
 }

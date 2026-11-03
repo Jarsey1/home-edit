@@ -2,6 +2,7 @@
 
 import { useState, type ComponentType, type SVGProps } from "react";
 import { useAppData } from "../../lib/app-data";
+import { buildInfo, shortCommit } from "../../lib/build-info";
 import { translateWishlistName, useI18n } from "../../lib/i18n";
 import {
   BudgetIcon,
@@ -22,6 +23,17 @@ type Row = {
   onClick?: () => void;
   badge?: string;
 };
+
+function formatBuildTime(value: string, locale: "en" | "es") {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return "—";
+  const formatted = new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "UTC",
+  }).format(date);
+  return `${formatted} UTC`;
+}
 
 export function MoreScreen({
   onOpenHomes,
@@ -433,10 +445,53 @@ export function MoreScreen({
         <RowGroup title={t("more.yourSearch")} rows={searchRows} />
         <RowGroup title={t("more.comingSoon")} rows={soonRows} />
 
+        <section className="mt-7">
+          <h2 className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted">
+            {t("more.about")}
+          </h2>
+          <div className="mt-3 overflow-hidden rounded-[22px] border border-line bg-white/50">
+            {[
+              {
+                label: t("more.environment"),
+                value: t(
+                  `more.environment.${buildInfo.environment}` as
+                    | "more.environment.production"
+                    | "more.environment.staging"
+                    | "more.environment.development",
+                ),
+              },
+              { label: t("more.versionLabel"), value: buildInfo.version },
+              {
+                label: t("more.commit"),
+                value: shortCommit(buildInfo.commit),
+              },
+              {
+                label: t("more.builtAt"),
+                value: formatBuildTime(buildInfo.builtAt, locale),
+              },
+            ].map((row, index) => (
+              <div
+                key={row.label}
+                className={[
+                  "flex items-center justify-between gap-4 px-4 py-3",
+                  index > 0 ? "border-t border-line/70" : "",
+                ].join(" ")}
+              >
+                <span className="text-[10px] uppercase tracking-[0.1em] text-muted">
+                  {row.label}
+                </span>
+                <span className="min-w-0 truncate text-right text-[11px] font-medium text-ink">
+                  {row.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <p className="mt-7 text-center text-[10px] leading-5 text-muted">
           The Next Home Edit
           <br />
-          {t("more.version")}
+          {t("more.version", { version: buildInfo.version })}
         </p>
       </div>
     </div>
