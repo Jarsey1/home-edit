@@ -12,9 +12,9 @@ Last inspected: November 2, 2026
 | Production Worker | `home-edit` at `https://home-edit.jarsey1.workers.dev` |
 | Production hosting | Cloudflare Workers + OpenNext |
 | Production deployment | Cloudflare GitHub integration from `main` |
-| Staging Worker | Not created yet; configuration is ready in `wrangler.staging.jsonc` |
+| Staging Worker | `home-edit-staging` at `https://home-edit-staging.jarsey1.workers.dev` |
 | Supabase production | Project `upkiivhuxgvrjtkorvbi`; account snapshot sync via `0004_account_snapshots.sql` |
-| Supabase staging | Not created yet |
+| Supabase staging | Project `bdrzhobnfxjgjaquwctu`; `account_snapshots` exists; email auth enabled |
 | Authentication | Email/password and Google OAuth |
 | Tests | Vitest: 89 tests; ESLint; `tsc --noEmit`; Next/OpenNext production build |
 | CI/CD before this setup | No GitHub Actions or required checks; branch protection was applied during setup |
@@ -253,14 +253,15 @@ No paid service is required for the initial setup.
 
 - [x] Create `develop` branch (done in repository).
 - [x] Protect `main` and `develop` as described above.
-- [ ] Create the `home-edit-staging` Worker from `develop`.
-- [ ] Create the staging Supabase project and run `0004`.
-- [ ] Add staging environment variables.
+- [x] Create the `home-edit-staging` Worker and deploy `develop` manually.
+- [x] Create the staging Supabase project and run `0004`.
+- [x] Add staging Worker variables and GitHub staging variables.
 - [ ] Set production `NEXT_PUBLIC_APP_ENV=production`.
 - [ ] Change the production build command to
       `npm run build:cloudflare:checked`.
-- [ ] Add the staging URL to staging Supabase redirect URLs.
+- [ ] Verify the staging URL and wildcard are saved correctly in staging Supabase.
 - [ ] Restrict staging access if using real tester data.
+- [ ] Add `CLOUDFLARE_API_TOKEN` and set `STAGING_DEPLOY_ENABLED=true`.
 - [ ] Run the full verification workflow below.
 
 ## Full workflow verification
