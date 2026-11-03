@@ -36,7 +36,8 @@ export function normalizeLocationPart(value: string) {
 
 export function normalizeRegion(value: string) {
   const cleaned = value
-    .replace(/\b\d{5}(?:-\d{4})?\b/g, "")
+    // Strip ZIP and placeholder codes such as "33137" or "331XX".
+    .replace(/\b\d[0-9A-Za-z-]*\b/g, "")
     .replace(/[^a-zA-Z\s]/g, " ")
     .trim();
   const normalized = normalizeLocationPart(cleaned);

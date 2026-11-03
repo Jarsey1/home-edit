@@ -19,6 +19,10 @@ describe("location matching", () => {
       key: "miami|fl|us",
       verified: true,
     });
+    expect(parsePropertyLocation("Miami, FL 331XX")).toMatchObject({
+      key: "miami|fl|us",
+      verified: true,
+    });
     expect(excludedCityKey("Davie", "Florida", "United States")).toBe(
       "davie|fl|us",
     );
