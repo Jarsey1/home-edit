@@ -10,10 +10,12 @@ import { CompareScreen } from "./components/screens/compare-screen";
 import { EditPropertyScreen } from "./components/screens/edit-property-screen";
 import { EvaluateScreen } from "./components/screens/evaluate-screen";
 import { MoreScreen } from "./components/screens/more-screen";
+import { OnboardingScreen } from "./components/screens/onboarding-screen";
 import { NeighborhoodScreen } from "./components/screens/neighborhood-screen";
 import { PropertyScreen } from "./components/screens/property-screen";
 import { SettingsScreen } from "./components/screens/settings-screen";
 import { TourNotesScreen } from "./components/screens/tour-notes-screen";
+import { WelcomeScreen } from "./components/screens/welcome-screen";
 import { WishlistScreen } from "./components/screens/wishlist-screen";
 import { useAppData } from "./lib/app-data";
 import { buildInfo } from "./lib/build-info";
@@ -39,7 +41,16 @@ type Overlay =
 type OverlayType = Exclude<Overlay["type"], "add-home" | "budget">;
 
 export default function HomeApp() {
-  const { homes, topMatch } = useAppData();
+  const {
+    homes,
+    topMatch,
+    user,
+    authReady,
+    accountReady,
+    accountSyncError,
+    wishlists,
+    signOut,
+  } = useAppData();
   const { t } = useI18n();
   const [tab, setTab] = useState<TabId>("home");
   const [overlays, setOverlays] = useState<Overlay[]>([]);
@@ -81,19 +92,90 @@ export default function HomeApp() {
     setOverlays((current) => current.slice(0, -1));
   }
 
+  const stagingBanner =
+    buildInfo.environment === "staging" ? (
+      <div
+        role="note"
+        className="mx-4 mt-3 rounded-xl border border-gold/35 bg-gold/10 px-3 py-2 text-[9.5px] leading-4 text-[#6b5535]"
+      >
+        <span className="mr-1 font-semibold uppercase tracking-[0.08em]">
+          {t("staging.badge")}
+        </span>{" "}
+        {t("staging.warning")}
+      </div>
+    ) : null;
+
+  if (!authReady) {
+    return (
+      <main className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col items-center justify-center bg-cream px-6 sm:my-7 sm:min-h-[calc(100dvh-3.5rem)] sm:rounded-[40px] sm:border sm:border-line">
+        <p className="font-serif text-[28px] tracking-[-0.02em] text-ink">
+          The Next Home Edit
+        </p>
+        <p className="mt-3 text-[11px] text-muted">{t("auth.loading")}</p>
+      </main>
+    );
+  }
+
+  if (!user) {
+    return (
+      <>
+        {stagingBanner}
+        <WelcomeScreen />
+      </>
+    );
+  }
+
+  if (!accountReady && !accountSyncError) {
+    return (
+      <>
+        {stagingBanner}
+        <main className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col items-center justify-center bg-cream px-6 sm:my-7 sm:min-h-[calc(100dvh-3.5rem)] sm:rounded-[40px] sm:border sm:border-line">
+          <p className="font-serif text-[28px] tracking-[-0.02em] text-ink">
+            The Next Home Edit
+          </p>
+          <p className="mt-3 text-[11px] text-muted">{t("auth.loadingAccount")}</p>
+        </main>
+      </>
+    );
+  }
+
+  if (accountSyncError) {
+    return (
+      <>
+        {stagingBanner}
+        <main className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col justify-center bg-cream px-6 sm:my-7 sm:min-h-[calc(100dvh-3.5rem)] sm:rounded-[40px] sm:border sm:border-line">
+          <p className="font-serif text-[28px] leading-tight tracking-[-0.02em] text-ink">
+            {t("auth.accountErrorTitle")}
+          </p>
+          <p className="mt-3 text-[11px] leading-5 text-muted">
+            {t("auth.accountErrorBody")}
+          </p>
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="mt-5 min-h-10 w-full rounded-full border border-line bg-white/70 text-[11px] font-medium text-ink"
+          >
+            {t("more.signOut")}
+          </button>
+        </main>
+      </>
+    );
+  }
+
+  if (wishlists.length === 0) {
+    return (
+      <>
+        {stagingBanner}
+        <OnboardingScreen
+          onStart={(destination) => changeTab(destination)}
+        />
+      </>
+    );
+  }
+
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-cream sm:my-7 sm:min-h-[calc(100dvh-3.5rem)] sm:rounded-[40px] sm:border sm:border-line sm:shadow-[0_40px_90px_-35px_rgba(53,48,38,0.45)]">
-      {buildInfo.environment === "staging" && (
-        <div
-          role="note"
-          className="mx-4 mt-3 rounded-xl border border-gold/35 bg-gold/10 px-3 py-2 text-[9.5px] leading-4 text-[#6b5535]"
-        >
-          <span className="mr-1 font-semibold uppercase tracking-[0.08em]">
-            {t("staging.badge")}
-          </span>{" "}
-          {t("staging.warning")}
-        </div>
-      )}
+      {stagingBanner}
       <main className="flex flex-1 flex-col">
       {overlay ? (
         <>
