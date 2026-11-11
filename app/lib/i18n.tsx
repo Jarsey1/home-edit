@@ -412,6 +412,16 @@ export const en = {
     "Account sync is not configured for this build.",
   "more.accountConfirmation":
     "Check your email to confirm your account, then sign in.",
+  "more.confirmTitle": "Confirm your email",
+  "more.confirmBody":
+    "We sent a confirmation link to {email}. Check your inbox and spam folder, then sign in. If it does not arrive, resend the email.",
+  "more.resendConfirmation": "Resend confirmation email",
+  "more.confirmationResent":
+    "Confirmation email resent. Check your inbox and spam folder.",
+  "more.changeEmail": "Use a different email",
+  "more.accountExists":
+    "That email is already registered. Sign in, or use “Continue with Google” if that is how you created it.",
+
   "more.accountSignedInAs": "Signed in as {email}",
   "more.accountPasswordHint": "Use at least 6 characters.",
   "more.accountFieldsRequired": "Enter your email and password.",
@@ -1434,6 +1444,16 @@ const es: Record<TranslationKey, string> = {
     "La sincronización con la cuenta no está configurada en esta versión.",
   "more.accountConfirmation":
     "Revisa tu correo para confirmar la cuenta y luego inicia sesión.",
+  "more.confirmTitle": "Confirma tu correo",
+  "more.confirmBody":
+    "Enviamos un enlace de confirmación a {email}. Revisa tu bandeja de entrada y la carpeta de spam, luego inicia sesión. Si no llega, reenvía el correo.",
+  "more.resendConfirmation": "Reenviar correo de confirmación",
+  "more.confirmationResent":
+    "Correo de confirmación reenviado. Revisa tu bandeja y la carpeta de spam.",
+  "more.changeEmail": "Usar otro correo",
+  "more.accountExists":
+    "Ese correo ya está registrado. Inicia sesión o usa “Continuar con Google” si creaste la cuenta así.",
+
   "more.accountSignedInAs": "Sesión iniciada como {email}",
   "more.accountPasswordHint": "Usa al menos 6 caracteres.",
   "more.accountFieldsRequired": "Escribe tu correo y contraseña.",

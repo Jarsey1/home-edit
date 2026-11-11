@@ -70,6 +70,7 @@ export function MoreScreen({
     signInWithGoogle,
     signUp,
     signOut,
+    resendConfirmation,
   } = useAppData();
   const { t, locale, setLocale } = useI18n();
   const topScored = topMatches[0];
@@ -77,6 +78,7 @@ export function MoreScreen({
   const [password, setPassword] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
+  const [pendingEmail, setPendingEmail] = useState("");
 
   async function googleSignIn() {
     if (authBusy) return;
@@ -103,15 +105,40 @@ export function MoreScreen({
         : await signUp(email, password);
     setAuthBusy(false);
     if (!result.ok) {
-      setAuthMessage(result.error ?? t("more.accountError"));
+      const error = result.error ?? "";
+      if (/email not confirmed/i.test(error)) {
+        setPendingEmail(email.trim());
+        setAuthMessage("");
+      } else {
+        setAuthMessage(
+          /already registered/i.test(error)
+            ? t("more.accountExists")
+            : error || t("more.accountError"),
+        );
+      }
       return;
     }
     if (result.confirmationRequired) {
-      setAuthMessage(t("more.accountConfirmation"));
+      setPendingEmail(email.trim());
+      setAuthMessage("");
       return;
     }
+    setPendingEmail("");
     setPassword("");
     setAuthMessage(t("more.accountSynced"));
+  }
+
+  async function resendConfirmationEmail() {
+    if (!pendingEmail || authBusy) return;
+    setAuthBusy(true);
+    setAuthMessage("");
+    const result = await resendConfirmation(pendingEmail);
+    setAuthBusy(false);
+    setAuthMessage(
+      result.ok
+        ? t("more.confirmationResent")
+        : result.error ?? t("more.accountError"),
+    );
   }
 
   const searchRows: Row[] = [
@@ -364,6 +391,36 @@ export function MoreScreen({
                     </button>
                   </div>
                 </form>
+              )}
+              {pendingEmail && (
+                <div className="mt-3 rounded-xl border border-gold/30 bg-gold/10 px-3 py-2.5">
+                  <p className="text-[10.5px] font-medium leading-4 text-[#6b5535]">
+                    {t("more.confirmTitle")}
+                  </p>
+                  <p className="mt-1 text-[9.5px] leading-4 text-[#6b5535]">
+                    {t("more.confirmBody", { email: pendingEmail })}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void resendConfirmationEmail()}
+                      disabled={authBusy}
+                      className="min-h-8 rounded-full border border-olive/25 bg-white/70 px-2.5 text-[9px] font-medium text-olive disabled:opacity-50"
+                    >
+                      {t("more.resendConfirmation")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPendingEmail("");
+                        setAuthMessage("");
+                      }}
+                      className="min-h-8 rounded-full border border-line bg-white/60 px-2.5 text-[9px] font-medium text-muted"
+                    >
+                      {t("more.changeEmail")}
+                    </button>
+                  </div>
+                </div>
               )}
               {authMessage && (
                 <p role="status" className="mt-2 text-[10px] leading-4 text-muted">
