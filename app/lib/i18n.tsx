@@ -387,7 +387,7 @@ export const en = {
   "more.builtAt": "Build time",
   "more.version": "Version {version} · Made for your search",
   "more.v2Synced": "Wishlists, photos and plans synced",
-  "more.v2Local": "Wishlists, photos, plans and evaluations on this device only",
+  "more.v2Local": "Sign in to sync wishlists, photos and evaluations across devices",
   "more.evaluationsLocal": "Wishlists and plans synced · evaluations on this device",
   "more.scoring": "Match scoring",
   "more.scoringDetail": "Must-have 5 · Nice-to-have 2 · Dealbreakers filter",
@@ -541,7 +541,7 @@ export const en = {
   "wishlist.storageShared": "Saved to the shared test list.",
   "wishlist.storageAccount": "Saved. Syncing to your account.",
   "wishlist.storageStatusDevice":
-    "Stored on this device. Account sync is not connected.",
+    "Sign in to sync this wishlist across devices.",
   "wishlist.storageStatusShared":
     "Wishlists synced to the shared test list · evaluations stay on this device.",
   "wishlist.storageStatusAccount":
@@ -1419,7 +1419,7 @@ const es: Record<TranslationKey, string> = {
   "more.builtAt": "Fecha de compilación",
   "more.version": "Versión {version} · Hecha para tu búsqueda",
   "more.v2Synced": "Listas, fotos y planes sincronizados",
-  "more.v2Local": "Listas, fotos, planes y evaluaciones solo en este dispositivo",
+  "more.v2Local": "Inicia sesión para sincronizar listas, fotos y evaluaciones entre dispositivos",
   "more.evaluationsLocal": "Listas y planes sincronizados · evaluaciones en este dispositivo",
   "more.scoring": "Evaluación de compatibilidad",
   "more.scoringDetail": "Imprescindible 5 · Deseo 2 · Filtros eliminatorios",
@@ -1572,7 +1572,7 @@ const es: Record<TranslationKey, string> = {
   "wishlist.storageShared": "Guardado en la lista de prueba compartida.",
   "wishlist.storageAccount": "Guardado. Sincronizando con tu cuenta.",
   "wishlist.storageStatusDevice":
-    "Guardado en este dispositivo. La sincronización con tu cuenta no está conectada.",
+    "Inicia sesión para sincronizar esta lista entre dispositivos.",
   "wishlist.storageStatusShared":
     "Listas sincronizadas con la lista de prueba compartida · las evaluaciones quedan en este dispositivo.",
   "wishlist.storageStatusAccount":
