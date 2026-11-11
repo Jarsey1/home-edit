@@ -171,6 +171,7 @@ type AppData = Snapshot & {
   configured: boolean;
   user: User | null;
   authReady: boolean;
+  accountReady: boolean;
   accountSynced: boolean;
   accountSyncError: boolean;
   signIn: (
@@ -254,6 +255,7 @@ type AppData = Snapshot & {
     name: string,
     budget?: number | null,
     makeActive?: boolean,
+    withSuggestions?: boolean,
   ) => Wishlist | null;
   renameWishlist: (wishlistId: string, name: string) => void;
   duplicateWishlist: (wishlistId: string, name?: string) => Wishlist | null;
@@ -620,9 +622,32 @@ function accountSnapshot(snapshot: Snapshot) {
     details: snapshot.details,
     scenarios: snapshot.scenarios,
     evaluations: snapshot.evaluations,
+    homes: snapshot.homes,
     tourNotes: snapshot.tourNotes,
     comparisonNotes: snapshot.comparisonNotes,
     budget: snapshot.budget,
+  };
+}
+
+function emptyAccountSnapshot(): Snapshot {
+  const base = defaultSnapshot();
+  return {
+    ...base,
+    homes: [],
+    wishlist: [],
+    wishlists: [],
+    requirements: [],
+    details: {},
+    scenarios: base.scenarios.map((scenario) => ({
+      ...scenario,
+      wishlistId: null,
+      propertyId: null,
+      confirmed: false,
+    })),
+    evaluations: [],
+    tourNotes: {},
+    comparisonNotes: [],
+    budget: { ...DEFAULT_BUDGET },
   };
 }
 
@@ -684,6 +709,9 @@ function applyAccountSnapshot(
     budget: isObject(payload.budget)
       ? { ...current.budget, ...(payload.budget as Partial<BudgetSettings>) }
       : current.budget,
+    homes: Array.isArray(payload.homes)
+      ? (payload.homes as Home[])
+      : current.homes,
     wishlists: wishlists.map((wishlist) => ({
       ...wishlist,
       isActive: wishlist.id === activeId,
@@ -1205,6 +1233,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const budgetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dataRef = useRef(data);
   const accountReadyFor = useRef<string | null>(null);
+  const lastAuthUserId = useRef<string | null>(null);
   const ownerId = data.profile.id || DEFAULT_OWNER_ID;
   const userId = user?.id ?? null;
 
@@ -1217,20 +1246,24 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     void supabase.auth.getSession().then(({ data: session }) => {
       if (cancelled) return;
-      setUser(session.session?.user ?? null);
+      const nextUser = session.session?.user ?? null;
+      lastAuthUserId.current = nextUser?.id ?? null;
+      setUser(nextUser);
       setAuthReady(true);
     });
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         if (cancelled) return;
-        setUser(session?.user ?? null);
-        setAuthReady(true);
-        if (!session?.user) {
+        const nextUser = session?.user ?? null;
+        if (lastAuthUserId.current !== (nextUser?.id ?? null)) {
+          lastAuthUserId.current = nextUser?.id ?? null;
           accountReadyFor.current = null;
           setAccountReady(false);
           setAccountSynced(false);
           setAccountSyncError(false);
         }
+        setUser(nextUser);
+        setAuthReady(true);
       },
     );
     return () => {
@@ -1664,12 +1697,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         if (row?.data) {
           setData((current) => applyAccountSnapshot(current, row.data));
         } else {
+          const empty = emptyAccountSnapshot();
+          setData(empty);
           const { error: seedError } = await supabase!
             .from("account_snapshots")
             .upsert(
               {
                 owner_id: userId,
-                data: accountSnapshot(dataRef.current),
+                data: accountSnapshot(empty),
                 updated_at: new Date().toISOString(),
               },
               { onConflict: "owner_id" },
@@ -1897,22 +1932,24 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         homes: [...current.homes, home],
         details: { ...current.details, [home.id]: details },
       }));
-      pushMutation(() =>
-        supabase!
-          .from("homes")
-          .insert(toHomeRow(home, data.homes.length)),
-      );
-      // Facts (including "unknown" pool/gated choices) live in the V2 details
-      // record. pushV2 is a no-op until the migration has been run.
-      pushV2(() =>
-        supabase!
-          .from("property_details")
-          .upsert(toDetailsRow(details, ownerId), { onConflict: "home_id" }),
-      );
+      if (!user) {
+        pushMutation(() =>
+          supabase!
+            .from("homes")
+            .insert(toHomeRow(home, data.homes.length)),
+        );
+        // Facts (including "unknown" pool/gated choices) live in the V2 details
+        // record. pushV2 is a no-op until the migration has been run.
+        pushV2(() =>
+          supabase!
+            .from("property_details")
+            .upsert(toDetailsRow(details, ownerId), { onConflict: "home_id" }),
+        );
+      }
 
       return home;
     },
-    [data.homes, ownerId, pushMutation, pushV2],
+    [data.homes, ownerId, pushMutation, pushV2, user],
   );
 
   const updateHome = useCallback(
@@ -2017,7 +2054,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       let homeSynced = false;
       let detailsSynced = false;
 
-      if (hasSupabaseConfig) {
+      if (hasSupabaseConfig && !user) {
         // Attempt the cloud write even if the last read fell back to local.
         // A transient outage should not force every future edit to stay on
         // this device forever. Failures are reported to the caller.
@@ -2079,7 +2116,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
       return { home: homeSynced, details: detailsSynced };
     },
-    [data.details, data.homes, ownerId, v2Synced],
+    [data.details, data.homes, ownerId, v2Synced, user],
   );
 
   const saveHomeFact = useCallback(
@@ -2126,9 +2163,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       });
 
       // Property details and scenario FKs cascade from the home row.
-      pushMutation(() => supabase!.from("homes").delete().eq("id", homeId));
+      if (!user) {
+        pushMutation(() => supabase!.from("homes").delete().eq("id", homeId));
+      }
     },
-    [data.homes, pushMutation],
+    [data.homes, pushMutation, user],
   );
 
   const toggleSaved = useCallback(
@@ -2212,6 +2251,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       name: string,
       budget: number | null = null,
       makeActive = false,
+      withSuggestions = true,
     ) => {
       const trimmed = name.trim();
       if (!trimmed) return null;
@@ -2220,7 +2260,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         active,
         budget,
       });
-      const suggestions = suggestedRequirements(wishlist.id);
+      const suggestions = withSuggestions
+        ? suggestedRequirements(wishlist.id)
+        : [];
       const deactivated = active
         ? data.wishlists
             .filter((entry) => entry.isActive)
@@ -3180,6 +3222,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       configured: hasSupabaseConfig,
       user,
       authReady,
+      accountReady,
       accountSynced,
       accountSyncError,
       signIn,
@@ -3289,6 +3332,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     status,
     user,
     authReady,
+    accountReady,
     accountSynced,
     accountSyncError,
     signIn,
