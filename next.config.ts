@@ -8,7 +8,11 @@ const buildCommit =
   "local";
 const buildEnvironment =
   process.env.NEXT_PUBLIC_APP_ENV ??
-  (process.env.WORKERS_CI_BRANCH === "main" ? "production" : "development");
+  (process.env.WORKERS_CI_BRANCH === "main"
+    ? "production"
+    : process.env.NODE_ENV === "production"
+      ? "production"
+      : "development");
 const buildTime = process.env.NEXT_PUBLIC_BUILD_TIME ?? new Date().toISOString();
 
 const nextConfig: NextConfig = {
