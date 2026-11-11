@@ -187,6 +187,9 @@ type AppData = Snapshot & {
     name: string,
   ) => Promise<{ ok: boolean; error?: string }>;
   sendPasswordReset: () => Promise<{ ok: boolean; error?: string }>;
+  resendConfirmation: (
+    email: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
   deleteAccount: () => Promise<{ ok: boolean; error?: string }>;
   v2Synced: boolean;
   saving: boolean;
@@ -1300,6 +1303,21 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     });
     return error ? { ok: false, error: error.message } : { ok: true };
   }, [user]);
+
+  const resendConfirmation = useCallback(async (email: string) => {
+    if (!supabase) {
+      return { ok: false, error: "Account sync is not configured." };
+    }
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: email.trim(),
+      options: {
+        emailRedirectTo:
+          typeof window === "undefined" ? undefined : window.location.origin,
+      },
+    });
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }, []);
 
   const deleteAccount = useCallback(async () => {
     if (!supabase) {
@@ -3170,6 +3188,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       signOut,
       updateDisplayName,
       sendPasswordReset,
+      resendConfirmation,
       deleteAccount,
       v2Synced,
       saving: pendingWrites > 0,
@@ -3278,6 +3297,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     signOut,
     updateDisplayName,
     sendPasswordReset,
+    resendConfirmation,
     deleteAccount,
     v2Synced,
     evaluationsSynced,
