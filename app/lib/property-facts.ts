@@ -1,4 +1,5 @@
 import type { Home } from "./homes";
+import { parsePropertyLocation } from "./locations";
 import {
   FEATURE_BY_KEY,
   type FactValue,
@@ -83,11 +84,13 @@ export function factsFromHome(
   facts.yearBuilt =
     knownNumber(home.yearBuilt) ??
     (has(facts, "yearBuilt") ? facts.yearBuilt : null);
+  const location = parsePropertyLocation(home.city);
   facts.city =
     cityName(home.city) ?? (has(facts, "city") ? facts.city : null);
-  facts.excludedCity =
-    cityName(home.city) ??
-    (has(facts, "excludedCity") ? facts.excludedCity : null);
+  // Exclusions only match when both city and state/region are known. An
+  // ambiguous "Davie" must not disqualify a Davie in another state.
+  facts.excludedCity = location.verified ? location.key : null;
+  facts.locationVerified = location.verified;
   if (!has(facts, "propertyType")) facts.propertyType = home.type || null;
   if (!has(facts, "hoa")) facts.hoa = home.hoa > 0 ? home.hoa : null;
   if (!has(facts, "lotAcres")) facts.lotAcres = parseLotAcres(home.lot);

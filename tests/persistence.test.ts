@@ -38,7 +38,8 @@ describe("property facts", () => {
     const facts = factsFromHome(baseHome, { monthlyOwnershipCost: 4_850 });
     expect(facts.beds).toBe(4);
     expect(facts.city).toBe("Miami");
-    expect(facts.excludedCity).toBe("Miami");
+    expect(facts.excludedCity).toBe("miami|fl|us");
+    expect(facts.locationVerified).toBe(true);
     expect(facts.pool).toBe(true);
     expect(facts.lotAcres).toBe(0.25);
     expect(facts.monthlyOwnershipCost).toBe(4_850);

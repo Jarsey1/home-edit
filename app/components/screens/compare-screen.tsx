@@ -21,6 +21,7 @@ import {
   formatPrice,
   formatPriceOrPending,
 } from "../../lib/homes";
+import { parsePropertyLocation } from "../../lib/locations";
 import {
   translatePropertyType,
   translateRequirementName,
@@ -601,6 +602,36 @@ export function CompareScreen({
         ) : (
           <CheckIcon className="mx-auto h-4 w-4 text-olive" />
         ),
+    },
+    {
+      label: t("compare.locationDealbreaker"),
+      render: (entry) => {
+        const excluded = entry.score.confirmedDealbreakers.some(
+          (requirement) => requirement.featureKey === "excludedCity",
+        );
+        const hasExclusions =
+          (activeWishlist?.excludedCities?.length ?? 0) > 0;
+        if (excluded) {
+          return (
+            <span className="inline-flex items-center gap-1 text-[9px] font-medium text-clay">
+              <XIcon className="h-3.5 w-3.5" />
+              {t("compare.locationExcluded")}
+            </span>
+          );
+        }
+        if (
+          hasExclusions &&
+          !parsePropertyLocation(entry.home.city).verified
+        ) {
+          return (
+            <span className="inline-flex items-start gap-1 text-[8.5px] leading-3 text-muted">
+              <QuestionIcon className="mt-0.5 h-3 w-3 shrink-0" />
+              {t("compare.locationVerify")}
+            </span>
+          );
+        }
+        return <CheckIcon className="mx-auto h-4 w-4 text-olive" />;
+      },
     },
     {
       label: t("compare.matchStatus"),

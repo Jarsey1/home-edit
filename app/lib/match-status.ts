@@ -16,9 +16,9 @@ export function matchStatus(
   hasScoreableRequirements: boolean,
   hasConfigurationGaps = false,
 ): MatchStatus {
+  if (score?.disqualified) return "disqualified";
   if (!hasScoreableRequirements) return "not-ready";
   if (!score || score.score === null) return "insufficient";
-  if (score.disqualified) return "disqualified";
   if (hasConfigurationGaps) return "partial";
   if (
     score.mustUnknown.length > 0 ||

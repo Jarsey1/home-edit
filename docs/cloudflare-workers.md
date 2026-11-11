@@ -3,6 +3,9 @@
 This project uses the OpenNext Cloudflare adapter to run the existing Next.js
 app on Cloudflare Workers. The app no longer depends on the Mac being awake.
 
+For staging/production environment separation, branch protection, approval,
+build information and rollback, see [`ci-cd.md`](./ci-cd.md).
+
 ## Local verification
 
 ```bash
@@ -19,7 +22,7 @@ In **Cloudflare → Workers & Pages → Create an application → Connect to Git
 - Repository: `Jarsey1/home-edit`
 - Branch: `v2.1` (or merge it into `main` first)
 - Project name: `home-edit`
-- Build command: `npm run build:cloudflare`
+- Build command: `npm run build:cloudflare:checked`
 - Deploy command: `npx wrangler deploy`
 - Preview builds: turn off until the production deployment is verified
 - Root directory: leave empty
@@ -34,6 +37,7 @@ Add these as **build variables** before the first deploy:
 ```text
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY
+NEXT_PUBLIC_APP_ENV=production
 NEXT_PUBLIC_PRICE_WARNING_THRESHOLD   # optional
 ```
 

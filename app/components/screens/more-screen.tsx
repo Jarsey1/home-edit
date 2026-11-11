@@ -2,6 +2,7 @@
 
 import { useState, type ComponentType, type SVGProps } from "react";
 import { useAppData } from "../../lib/app-data";
+import { buildInfo, shortCommit } from "../../lib/build-info";
 import { translateWishlistName, useI18n } from "../../lib/i18n";
 import {
   BudgetIcon,
@@ -23,18 +24,33 @@ type Row = {
   badge?: string;
 };
 
+function formatBuildTime(value: string, locale: "en" | "es") {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return "—";
+  const formatted = new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "UTC",
+  }).format(date);
+  return `${formatted} UTC`;
+}
+
 export function MoreScreen({
   onOpenHomes,
   onOpenWishlist,
   onOpenBudget,
   onOpenTour,
   onOpenNeighborhood,
+  onOpenCities,
+  onOpenSettings,
 }: {
   onOpenHomes: () => void;
   onOpenWishlist: () => void;
   onOpenBudget: () => void;
   onOpenTour: () => void;
   onOpenNeighborhood: () => void;
+  onOpenCities: () => void;
+  onOpenSettings: () => void;
 }) {
   const {
     savedCount,
@@ -54,6 +70,7 @@ export function MoreScreen({
     signInWithGoogle,
     signUp,
     signOut,
+    resendConfirmation,
   } = useAppData();
   const { t, locale, setLocale } = useI18n();
   const topScored = topMatches[0];
@@ -61,6 +78,7 @@ export function MoreScreen({
   const [password, setPassword] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
+  const [pendingEmail, setPendingEmail] = useState("");
 
   async function googleSignIn() {
     if (authBusy) return;
@@ -87,15 +105,40 @@ export function MoreScreen({
         : await signUp(email, password);
     setAuthBusy(false);
     if (!result.ok) {
-      setAuthMessage(result.error ?? t("more.accountError"));
+      const error = result.error ?? "";
+      if (/email not confirmed/i.test(error)) {
+        setPendingEmail(email.trim());
+        setAuthMessage("");
+      } else {
+        setAuthMessage(
+          /already registered/i.test(error)
+            ? t("more.accountExists")
+            : error || t("more.accountError"),
+        );
+      }
       return;
     }
     if (result.confirmationRequired) {
-      setAuthMessage(t("more.accountConfirmation"));
+      setPendingEmail(email.trim());
+      setAuthMessage("");
       return;
     }
+    setPendingEmail("");
     setPassword("");
     setAuthMessage(t("more.accountSynced"));
+  }
+
+  async function resendConfirmationEmail() {
+    if (!pendingEmail || authBusy) return;
+    setAuthBusy(true);
+    setAuthMessage("");
+    const result = await resendConfirmation(pendingEmail);
+    setAuthBusy(false);
+    setAuthMessage(
+      result.ok
+        ? t("more.confirmationResent")
+        : result.error ?? t("more.accountError"),
+    );
   }
 
   const searchRows: Row[] = [
@@ -127,6 +170,23 @@ export function MoreScreen({
       onClick: onOpenNeighborhood,
     },
     {
+      label: t("more.cities"),
+      detail: activeWishlist
+        ? t("more.citiesDetailCount", {
+            count: activeWishlist.excludedCities?.length ?? 0,
+            name: translateWishlistName(activeWishlist.name, locale),
+          })
+        : t("more.citiesDetail"),
+      Icon: MapPinIcon,
+      onClick: onOpenCities,
+    },
+    {
+      label: t("more.settings"),
+      detail: t("more.settingsDetail"),
+      Icon: SettingsIcon,
+      onClick: onOpenSettings,
+    },
+    {
       label: t("more.budget"),
       detail: t("more.budgetDetail"),
       Icon: BudgetIcon,
@@ -145,18 +205,6 @@ export function MoreScreen({
       label: t("more.documents"),
       detail: t("more.documentsDetail"),
       Icon: DocumentIcon,
-      badge: t("more.soon"),
-    },
-    {
-      label: t("more.cities"),
-      detail: t("more.citiesDetail"),
-      Icon: SparkleIcon,
-      badge: t("more.soon"),
-    },
-    {
-      label: t("more.settings"),
-      detail: t("more.settingsDetail"),
-      Icon: SettingsIcon,
       badge: t("more.soon"),
     },
   ];
@@ -344,6 +392,36 @@ export function MoreScreen({
                   </div>
                 </form>
               )}
+              {pendingEmail && (
+                <div className="mt-3 rounded-xl border border-gold/30 bg-gold/10 px-3 py-2.5">
+                  <p className="text-[10.5px] font-medium leading-4 text-[#6b5535]">
+                    {t("more.confirmTitle")}
+                  </p>
+                  <p className="mt-1 text-[9.5px] leading-4 text-[#6b5535]">
+                    {t("more.confirmBody", { email: pendingEmail })}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void resendConfirmationEmail()}
+                      disabled={authBusy}
+                      className="min-h-8 rounded-full border border-olive/25 bg-white/70 px-2.5 text-[9px] font-medium text-olive disabled:opacity-50"
+                    >
+                      {t("more.resendConfirmation")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPendingEmail("");
+                        setAuthMessage("");
+                      }}
+                      className="min-h-8 rounded-full border border-line bg-white/60 px-2.5 text-[9px] font-medium text-muted"
+                    >
+                      {t("more.changeEmail")}
+                    </button>
+                  </div>
+                </div>
+              )}
               {authMessage && (
                 <p role="status" className="mt-2 text-[10px] leading-4 text-muted">
                   {authMessage}
@@ -433,10 +511,53 @@ export function MoreScreen({
         <RowGroup title={t("more.yourSearch")} rows={searchRows} />
         <RowGroup title={t("more.comingSoon")} rows={soonRows} />
 
+        <section className="mt-7">
+          <h2 className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted">
+            {t("more.about")}
+          </h2>
+          <div className="mt-3 overflow-hidden rounded-[22px] border border-line bg-white/50">
+            {[
+              {
+                label: t("more.environment"),
+                value: t(
+                  `more.environment.${buildInfo.environment}` as
+                    | "more.environment.production"
+                    | "more.environment.staging"
+                    | "more.environment.development",
+                ),
+              },
+              { label: t("more.versionLabel"), value: buildInfo.version },
+              {
+                label: t("more.commit"),
+                value: shortCommit(buildInfo.commit),
+              },
+              {
+                label: t("more.builtAt"),
+                value: formatBuildTime(buildInfo.builtAt, locale),
+              },
+            ].map((row, index) => (
+              <div
+                key={row.label}
+                className={[
+                  "flex items-center justify-between gap-4 px-4 py-3",
+                  index > 0 ? "border-t border-line/70" : "",
+                ].join(" ")}
+              >
+                <span className="text-[10px] uppercase tracking-[0.1em] text-muted">
+                  {row.label}
+                </span>
+                <span className="min-w-0 truncate text-right text-[11px] font-medium text-ink">
+                  {row.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <p className="mt-7 text-center text-[10px] leading-5 text-muted">
           The Next Home Edit
           <br />
-          {t("more.version")}
+          {t("more.version", { version: buildInfo.version })}
         </p>
       </div>
     </div>

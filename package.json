@@ -1,6 +1,6 @@
 {
   "name": "next-home-edit",
-  "version": "0.1.0",
+  "version": "2.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -12,7 +12,10 @@
     "build:cloudflare": "opennextjs-cloudflare build",
     "preview:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "typecheck": "next typegen && tsc --noEmit",
+    "ci": "npm run lint && npm run typecheck && npm test",
+    "build:cloudflare:checked": "npm run ci && npm run build:cloudflare"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.20.14",

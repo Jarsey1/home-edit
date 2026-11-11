@@ -58,12 +58,24 @@ export type WishlistRequirement = {
   custom?: boolean;
 };
 
+export type ExcludedCity = {
+  id: string;
+  city: string;
+  region: string;
+  country: string;
+  /** Stable normalized key: city|region|country. */
+  key: string;
+  createdAt: string;
+};
+
 export type Wishlist = {
   id: string;
   name: string;
   isActive: boolean;
   /** Optional purchase budget for this wishlist. */
   budget: number | null;
+  /** Cities excluded as a location dealbreaker for this wishlist only. */
+  excludedCities: ExcludedCity[];
   createdAt: string;
   updatedAt: string;
 };
