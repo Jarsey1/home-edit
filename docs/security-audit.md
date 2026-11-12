@@ -35,6 +35,16 @@ Verified against production and staging:
 
 The account snapshot is therefore private per authenticated user.
 
+### Legacy table migration (required, currently pending)
+
+`supabase/migrations/0005_private_legacy_owner.sql` adds `owner_id` to the five
+legacy tables, assigns existing rows to the owner account, replaces the shared
+policies with owner-only policies, and revokes anonymous table access.
+
+This migration is **not applied yet**. Back up the legacy tables, run it on
+staging, verify anonymous API reads/writes are denied, then apply it to
+production after approval. New accounts no longer read or write these tables.
+
 ## Known shared data (not migrated)
 
 These legacy tables are still part of the original single-household design and
