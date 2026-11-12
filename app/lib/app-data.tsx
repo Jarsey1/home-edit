@@ -188,6 +188,9 @@ type AppData = Snapshot & {
     name: string,
   ) => Promise<{ ok: boolean; error?: string }>;
   sendPasswordReset: () => Promise<{ ok: boolean; error?: string }>;
+  requestPasswordReset: (
+    email: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
   resendConfirmation: (
     email: string,
   ) => Promise<{ ok: boolean; error?: string }>;
@@ -1325,18 +1328,29 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const sendPasswordReset = useCallback(async () => {
-    if (!supabase || !user?.email) {
-      return { ok: false, error: "No email account is available." };
+  const requestPasswordReset = useCallback(async (email: string) => {
+    if (!supabase) {
+      return { ok: false, error: "Account sync is not configured." };
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+    const trimmed = email.trim();
+    if (!trimmed) {
+      return { ok: false, error: "Enter your email address." };
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(trimmed, {
       redirectTo:
         typeof window === "undefined"
           ? undefined
           : `${window.location.origin}/reset-password`,
     });
     return error ? { ok: false, error: error.message } : { ok: true };
-  }, [user]);
+  }, []);
+
+  const sendPasswordReset = useCallback(async () => {
+    if (!user?.email) {
+      return { ok: false, error: "No email account is available." };
+    }
+    return requestPasswordReset(user.email);
+  }, [user, requestPasswordReset]);
 
   const resendConfirmation = useCallback(async (email: string) => {
     if (!supabase) {
@@ -3196,6 +3210,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       signOut,
       updateDisplayName,
       sendPasswordReset,
+      requestPasswordReset,
       resendConfirmation,
       deleteAccount,
       v2Synced,
@@ -3306,6 +3321,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     signOut,
     updateDisplayName,
     sendPasswordReset,
+    requestPasswordReset,
     resendConfirmation,
     deleteAccount,
     v2Synced,

@@ -45,8 +45,13 @@ export function SettingsScreen({ onBack }: { onBack: () => void }) {
 
   async function resetPassword() {
     const result = await sendPasswordReset();
+    const error = result.error ?? "";
     setMessage(
-      result.ok ? t("settings.resetSent") : result.error ?? t("settings.error"),
+      result.ok
+        ? t("settings.resetSent")
+        : /rate limit/i.test(error)
+          ? t("welcome.rateLimit")
+          : error || t("settings.error"),
     );
   }
 
