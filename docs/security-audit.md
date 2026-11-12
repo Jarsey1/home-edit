@@ -100,6 +100,19 @@ The route returns `503` until `SUPABASE_SERVICE_ROLE_KEY` is configured in the
 Worker. Account deletion has **not** been tested with a disposable account yet
 because that secret is not present in staging.
 
+## Authentication-first gate and onboarding
+
+- Unauthenticated visitors see only the welcome/login screen. Dashboard,
+  wishlists, homes, comparisons, budget, evaluations, notes and photos are not
+  mounted.
+- Returning sessions open the app directly.
+- A newly authenticated account with no snapshot receives an empty workspace:
+  no shared homes, no demo wishlist and no seeded preferences.
+- The onboarding screen offers **Create My Wishlist** or **Explore the App**.
+  Both create a blank wishlist without importing shared test records.
+- Signed-in home writes no longer go to the shared `homes` table; the private
+  home list is stored in the account snapshot.
+
 ## Account Settings
 
 **More → Settings** now provides:
