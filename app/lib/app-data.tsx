@@ -37,6 +37,7 @@ import {
   type ScoreResult,
 } from "./scoring";
 import { hasSupabaseConfig, supabase } from "./supabase";
+import { removePhoto, signedPhotoUrls, uploadPhoto } from "./photo-storage";
 import type {
   BudgetSettings,
   ComparisonNote,
@@ -234,7 +235,7 @@ type AppData = Snapshot & {
     requirementId: string,
     state: EvaluationState,
   ) => void;
-  addHome: (input: NewHomeInput) => Home | null;
+  addHome: (input: NewHomeInput) => Promise<Home | null>;
   updateHome: (
     homeId: string,
     patch: HomeUpdate,
@@ -502,6 +503,10 @@ function normalizeDetails(value: unknown): PropertyDetails | null {
   return {
     homeId: value.homeId,
     photo: typeof value.photo === "string" && value.photo ? value.photo : null,
+    photoPath:
+      typeof value.photoPath === "string" && value.photoPath
+        ? value.photoPath
+        : null,
     listingUrl: typeof value.listingUrl === "string" ? value.listingUrl : "",
     notes: typeof value.notes === "string" ? value.notes : "",
     favorite: Boolean(value.favorite),
@@ -1198,6 +1203,7 @@ function mergeDetails(home: Home, details: PropertyDetails | undefined): Home {
     return {
       ...home,
       photo: home.photo ?? null,
+      photoPath: home.photoPath ?? null,
       listingUrl: home.listingUrl ?? "",
       notes: home.notes ?? "",
       favorite: home.favorite ?? false,
@@ -1209,6 +1215,7 @@ function mergeDetails(home: Home, details: PropertyDetails | undefined): Home {
   return {
     ...home,
     photo: details.photo,
+    photoPath: details.photoPath ?? home.photoPath ?? null,
     listingUrl: details.listingUrl,
     notes: details.notes,
     favorite: details.favorite,
@@ -1237,6 +1244,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const budgetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dataRef = useRef(data);
   const accountReadyFor = useRef<string | null>(null);
+  const photoRefreshFor = useRef<string | null>(null);
   const lastAuthUserId = useRef<string | null>(null);
   const ownerId = data.profile.id || DEFAULT_OWNER_ID;
   const userId = user?.id ?? null;
@@ -1713,6 +1721,51 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     };
   }, [ready, userId]);
 
+  // Signed Storage URLs expire. Refresh them once per signed-in session after
+  // the account snapshot (which contains only object paths) has loaded.
+  useEffect(() => {
+    if (photoRefreshFor.current && photoRefreshFor.current !== userId) {
+      photoRefreshFor.current = null;
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (!supabase || !userId || !accountReady) return;
+    if (photoRefreshFor.current === userId) return;
+    const items = data.homes
+      .filter(
+        (home): home is Home & { photoPath: string } =>
+          typeof home.photoPath === "string" && home.photoPath.length > 0,
+      )
+      .map((home) => ({ homeId: home.id, path: home.photoPath }));
+    if (items.length === 0) return;
+    photoRefreshFor.current = userId;
+    void (async () => {
+      try {
+        const urls = await signedPhotoUrls(supabase, items);
+        if (Object.keys(urls).length === 0) return;
+        setData((current) => {
+          let changed = false;
+          const homes = current.homes.map((home) => {
+            const url = urls[home.id];
+            if (!url || home.photo === url) return home;
+            changed = true;
+            return { ...home, photo: url };
+          });
+          if (!changed) return current;
+          const details = { ...current.details };
+          for (const [homeId, url] of Object.entries(urls)) {
+            const detail = details[homeId];
+            if (detail) details[homeId] = { ...detail, photo: url };
+          }
+          return { ...current, homes, details };
+        });
+      } catch (error) {
+        console.warn("Supabase photo URL refresh failed:", error);
+      }
+    })();
+  }, [accountReady, data.homes, userId]);
+
   useEffect(() => {
     if (!supabase || !userId || !ready || !accountReady) return;
     if (accountReadyFor.current !== userId) return;
@@ -1837,7 +1890,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   );
 
   const addHome = useCallback(
-    (input: NewHomeInput): Home | null => {
+    async (input: NewHomeInput): Promise<Home | null> => {
       const address = input.address.trim();
       if (!address) return null;
       const duplicate = data.homes.some(
@@ -1861,8 +1914,22 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         facts.lotAcres = input.lotAcres;
       }
 
+      const homeId = newId("home");
+      let photo = input.photo ?? null;
+      let photoPath: string | null = null;
+      if (photo && user && supabase) {
+        try {
+          const uploaded = await uploadPhoto(supabase, user.id, homeId, photo);
+          photo = uploaded.url;
+          photoPath = uploaded.path;
+        } catch (error) {
+          // Never lose the photo: keep the compressed data URL as a fallback.
+          console.warn("Supabase photo upload failed:", error);
+        }
+      }
+
       const home: Home = {
-        id: newId("home"),
+        id: homeId,
         address,
         city: input.city.trim(),
         price: Number.isFinite(input.price) ? Math.max(0, input.price) : 0,
@@ -1885,7 +1952,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         features: input.features ?? [],
         saved: true,
         tourRequested: false,
-        photo: input.photo ?? null,
+        photo,
+        photoPath,
         listingUrl: input.listingUrl?.trim() ?? "",
         notes: input.notes?.trim() ?? "",
         favorite: false,
@@ -1897,6 +1965,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       const details: PropertyDetails = {
         homeId: home.id,
         photo: home.photo ?? null,
+        photoPath,
         listingUrl: home.listingUrl ?? "",
         notes: home.notes ?? "",
         favorite: false,
@@ -1960,9 +2029,48 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         if (key in patch) corePatch[key] = patch[key as keyof HomeUpdate];
       }
 
+      const currentHome = data.homes.find((home) => home.id === homeId);
+      const existingDetails = data.details[homeId];
+
+      // Photos live in private Storage when the account is signed in. Keep the
+      // data URL only as an offline/local fallback.
+      let resolvedPhoto = patch.photo;
+      let resolvedPhotoPath: string | null | undefined;
+      if (patch.photo !== undefined && user && supabase) {
+        if (patch.photo === null) {
+          resolvedPhoto = null;
+          resolvedPhotoPath = null;
+          if (existingDetails?.photoPath) {
+            try {
+              await removePhoto(supabase, existingDetails.photoPath);
+            } catch (error) {
+              console.warn("Supabase photo removal failed:", error);
+            }
+          }
+        } else if (patch.photo.startsWith("data:")) {
+          try {
+            const uploaded = await uploadPhoto(
+              supabase,
+              user.id,
+              homeId,
+              patch.photo,
+            );
+            resolvedPhoto = uploaded.url;
+            resolvedPhotoPath = uploaded.path;
+          } catch (error) {
+            console.warn("Supabase photo upload failed:", error);
+            resolvedPhotoPath = null;
+          }
+        } else {
+          // An unchanged signed or external URL keeps its existing path.
+          resolvedPhotoPath =
+            existingDetails?.photoPath ?? currentHome?.photoPath ?? null;
+        }
+      }
+
       const detailPatch = {
         listingUrl: patch.listingUrl,
-        photo: patch.photo,
+        photo: resolvedPhoto,
         notes: patch.notes,
         favorite: patch.favorite,
         facts: patch.facts,
@@ -1973,16 +2081,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         (value) => value !== undefined,
       );
 
-      const currentHome = data.homes.find((home) => home.id === homeId);
       const nextHome = currentHome
         ? ({ ...currentHome, ...corePatch } as Home)
         : null;
       let nextDetails: PropertyDetails | null = null;
       if (hasDetailPatch) {
-        const existing = data.details[homeId];
-        const baseDetails: PropertyDetails = existing ?? {
+        const baseDetails: PropertyDetails = existingDetails ?? {
           homeId,
           photo: null,
+          photoPath: null,
           listingUrl: "",
           notes: "",
           favorite: false,
@@ -1997,6 +2104,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             ? { listingUrl: detailPatch.listingUrl }
             : {}),
           ...(detailPatch.photo !== undefined ? { photo: detailPatch.photo } : {}),
+          ...(resolvedPhotoPath !== undefined
+            ? { photoPath: resolvedPhotoPath }
+            : {}),
           ...(detailPatch.notes !== undefined ? { notes: detailPatch.notes } : {}),
           ...(detailPatch.favorite !== undefined
             ? { favorite: detailPatch.favorite }

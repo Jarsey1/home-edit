@@ -449,7 +449,7 @@ export function AddHomeScreen({
     }
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
 
@@ -481,7 +481,7 @@ export function AddHomeScreen({
 
     setSaving(true);
     const values = draftValidation.values;
-    const home = addHome({
+    const home = await addHome({
       address,
       city: city.trim(),
       price: values.price ?? 0,
