@@ -1456,45 +1456,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           ),
         };
 
-        // First-run seed: keep the demo content when a table is still empty.
-        if (legacy.homes.length === 0) {
-          legacy.homes = clone(DEFAULT_HOMES);
-          await client
-            .from("homes")
-            .upsert(legacy.homes.map(toHomeRow), { onConflict: "id" });
-        }
-
-        if (legacy.wishlist.length === 0) {
-          legacy.wishlist = clone(DEFAULT_WISHLIST);
-          await client
-            .from("wishlist_items")
-            .upsert(legacy.wishlist.map(toWishlistRow), { onConflict: "id" });
-        }
-
-        if (Object.keys(legacy.tourNotes).length === 0) {
-          // Demo notes reference demo homes. Only seed notes for homes that
-          // actually exist in this dataset, otherwise the foreign key rejects
-          // the whole batch.
-          legacy.tourNotes = Object.fromEntries(
-            Object.entries(clone(DEFAULT_TOUR_NOTES)).filter(([homeId]) =>
-              legacy.homes.some((home) => home.id === homeId),
-            ),
-          );
-          if (Object.keys(legacy.tourNotes).length > 0) {
-            await client
-              .from("tour_notes")
-              .upsert(Object.values(legacy.tourNotes).map(toTourNoteRow), {
-                onConflict: "home_id",
-              });
-          }
-        }
-
-        if (!budgetResult.data) {
-          await client
-            .from("budget_settings")
-            .upsert(toBudgetRow(legacy.budget), { onConflict: "id" });
-        }
-
+        // Do not seed shared demo homes, wishlists, notes or budget settings.
+        // New accounts start from an empty private snapshot and explicit
+        // onboarding. Existing owners keep their own rows through RLS.
         // V2 tables are additive. If the migration has not been run, the app
         // keeps the V2 state on this device instead of failing the whole load.
         let next = legacy;
