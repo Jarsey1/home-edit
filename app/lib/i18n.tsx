@@ -317,6 +317,16 @@ export const en = {
   "welcome.createAccount": "Create account",
   "welcome.fieldsRequired": "Enter your email and password.",
   "welcome.error": "Something went wrong. Please try again.",
+  "welcome.forgotPassword": "Forgot password?",
+  "welcome.forgotHint":
+    "Enter the email for your account and we'll send a reset link.",
+  "welcome.forgotEmailRequired": "Enter your email address.",
+  "welcome.sendResetLink": "Send reset link",
+  "welcome.resetSent":
+    "If that email has an account, a reset link is on its way. Check spam too.",
+  "welcome.backToSignIn": "Back to sign in",
+  "welcome.rateLimit":
+    "Too many emails were requested. Wait a few minutes and try again.",
   "welcome.privacyNote":
     "Your wishlists, saved homes, notes and evaluations are private to your account.",
   "onboarding.eyebrow": "Welcome",
@@ -1368,6 +1378,16 @@ const es: Record<TranslationKey, string> = {
   "welcome.createAccount": "Crear cuenta",
   "welcome.fieldsRequired": "Escribe tu correo y contraseña.",
   "welcome.error": "Algo salió mal. Inténtalo de nuevo.",
+  "welcome.forgotPassword": "¿Olvidaste tu contraseña?",
+  "welcome.forgotHint":
+    "Escribe el correo de tu cuenta y te enviaremos un enlace para restablecerla.",
+  "welcome.forgotEmailRequired": "Escribe tu correo.",
+  "welcome.sendResetLink": "Enviar enlace",
+  "welcome.resetSent":
+    "Si ese correo tiene una cuenta, el enlace va en camino. Revisa también el spam.",
+  "welcome.backToSignIn": "Volver a iniciar sesión",
+  "welcome.rateLimit":
+    "Se pidieron demasiados correos. Espera unos minutos e inténtalo de nuevo.",
   "welcome.privacyNote":
     "Tus listas, casas guardadas, notas y evaluaciones son privadas para tu cuenta.",
   "onboarding.eyebrow": "Bienvenido",

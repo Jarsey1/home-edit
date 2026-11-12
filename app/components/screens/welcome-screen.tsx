@@ -19,7 +19,13 @@ function GoogleMark() {
 }
 
 export function WelcomeScreen() {
-  const { signIn, signUp, signInWithGoogle, resendConfirmation } = useAppData();
+  const {
+    signIn,
+    signUp,
+    signInWithGoogle,
+    resendConfirmation,
+    requestPasswordReset,
+  } = useAppData();
   const { t } = useI18n();
   const [emailOpen, setEmailOpen] = useState(false);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -28,6 +34,10 @@ export function WelcomeScreen() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [pendingEmail, setPendingEmail] = useState("");
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotBusy, setForgotBusy] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
 
   async function submit() {
     if (busy) return;
@@ -70,6 +80,29 @@ export function WelcomeScreen() {
     setMessage(
       result.ok ? t("more.confirmationResent") : result.error ?? t("welcome.error"),
     );
+  }
+
+  async function sendResetLink() {
+    if (forgotBusy) return;
+    if (!email.trim()) {
+      setForgotMessage(t("welcome.forgotEmailRequired"));
+      return;
+    }
+    setForgotBusy(true);
+    setForgotMessage("");
+    const result = await requestPasswordReset(email);
+    setForgotBusy(false);
+    if (!result.ok) {
+      const error = result.error ?? "";
+      setForgotMessage(
+        /rate limit/i.test(error)
+          ? t("welcome.rateLimit")
+          : error || t("welcome.error"),
+      );
+      return;
+    }
+    setForgotSent(true);
+    setForgotMessage(t("welcome.resetSent"));
   }
 
   return (
@@ -151,6 +184,9 @@ export function WelcomeScreen() {
                       onClick={() => {
                         setMode(value);
                         setMessage("");
+                        setForgotOpen(false);
+                        setForgotMessage("");
+                        setForgotSent(false);
                       }}
                       aria-pressed={mode === value}
                       className={[
@@ -170,26 +206,77 @@ export function WelcomeScreen() {
                   placeholder={t("more.email")}
                   className={`${fieldClass} mt-3`}
                 />
-                <input
-                  type="password"
-                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder={t("more.password")}
-                  className={`${fieldClass} mt-2`}
-                />
-                <button
-                  type="button"
-                  onClick={() => void submit()}
-                  disabled={busy}
-                  className="mt-3 min-h-10 w-full rounded-full bg-olive text-[11px] font-medium text-cream disabled:opacity-50"
-                >
-                  {mode === "signin" ? t("welcome.signIn") : t("welcome.createAccount")}
-                </button>
-                {message && (
-                  <p role="status" className="mt-2 text-[10px] leading-4 text-muted">
-                    {message}
-                  </p>
+                {forgotOpen ? (
+                  <>
+                    <p className="mt-3 text-[10px] leading-4 text-muted">
+                      {t("welcome.forgotHint")}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void sendResetLink()}
+                      disabled={forgotBusy || forgotSent}
+                      className="mt-3 min-h-10 w-full rounded-full bg-olive text-[11px] font-medium text-cream disabled:opacity-50"
+                    >
+                      {t("welcome.sendResetLink")}
+                    </button>
+                    {forgotMessage && (
+                      <p role="status" className="mt-2 text-[10px] leading-4 text-muted">
+                        {forgotMessage}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotOpen(false);
+                        setForgotMessage("");
+                        setForgotSent(false);
+                      }}
+                      className="mt-2 w-full text-center text-[10px] text-olive underline decoration-olive/30 underline-offset-2"
+                    >
+                      {t("welcome.backToSignIn")}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      type="password"
+                      autoComplete={
+                        mode === "signup" ? "new-password" : "current-password"
+                      }
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder={t("more.password")}
+                      className={`${fieldClass} mt-2`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void submit()}
+                      disabled={busy}
+                      className="mt-3 min-h-10 w-full rounded-full bg-olive text-[11px] font-medium text-cream disabled:opacity-50"
+                    >
+                      {mode === "signin"
+                        ? t("welcome.signIn")
+                        : t("welcome.createAccount")}
+                    </button>
+                    {mode === "signin" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForgotOpen(true);
+                          setForgotMessage("");
+                          setForgotSent(false);
+                        }}
+                        className="mt-2 w-full text-center text-[10px] text-olive underline decoration-olive/30 underline-offset-2"
+                      >
+                        {t("welcome.forgotPassword")}
+                      </button>
+                    )}
+                    {message && (
+                      <p role="status" className="mt-2 text-[10px] leading-4 text-muted">
+                        {message}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             )}
