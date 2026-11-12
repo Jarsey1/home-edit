@@ -709,9 +709,10 @@ function applyAccountSnapshot(
     budget: isObject(payload.budget)
       ? { ...current.budget, ...(payload.budget as Partial<BudgetSettings>) }
       : current.budget,
-    homes: Array.isArray(payload.homes)
-      ? (payload.homes as Home[])
-      : current.homes,
+    // Never fall back to the shared homes table for a signed-in account.
+    // Existing snapshots were backfilled before this release; a missing
+    // homes field means an empty private workspace.
+    homes: Array.isArray(payload.homes) ? (payload.homes as Home[]) : [],
     wishlists: wishlists.map((wishlist) => ({
       ...wishlist,
       isActive: wishlist.id === activeId,
