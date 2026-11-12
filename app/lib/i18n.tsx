@@ -135,6 +135,7 @@ export const en = {
   "dashboard.matchScoresLive":
     "Match scores use your active wishlist and update as facts change.",
   "dashboard.homesSynced": "Homes synced to Supabase",
+  "dashboard.homesAccount": "Homes synced to your account",
   "dashboard.homesLocal": "Homes saved on this device only",
 
   "compare.eyebrow": "Saved homes",
@@ -1176,6 +1177,7 @@ const es: Record<TranslationKey, string> = {
   "dashboard.matchScoresLive":
     "La compatibilidad usa tu lista activa y se actualiza al cambiar los datos.",
   "dashboard.homesSynced": "Casas sincronizadas con Supabase",
+  "dashboard.homesAccount": "Casas sincronizadas con tu cuenta",
   "dashboard.homesLocal": "Casas guardadas solo en este dispositivo",
 
   "compare.eyebrow": "Casas guardadas",
