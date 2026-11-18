@@ -671,7 +671,49 @@ function applyAccountSnapshot(
         .map(normalizeWishlist)
         .filter((entry): entry is Wishlist => Boolean(entry))
     : [];
-  if (wishlists.length === 0) return current;
+  if (wishlists.length === 0) {
+    // An empty snapshot is a real workspace state: the user deleted the last
+    // wishlist. Clear it instead of falling back to demo or legacy data.
+    const details = isObject(payload.details)
+      ? Object.fromEntries(
+          Object.values(payload.details)
+            .map(normalizeDetails)
+            .filter((entry): entry is PropertyDetails => Boolean(entry))
+            .map((entry) => [entry.homeId, entry]),
+        )
+      : {};
+    const scenarios = Array.isArray(payload.scenarios)
+      ? payload.scenarios
+          .map(normalizeScenario)
+          .filter((entry): entry is BudgetScenario => Boolean(entry))
+      : [];
+    const evaluations = Array.isArray(payload.evaluations)
+      ? payload.evaluations
+          .map(normalizeEvaluation)
+          .filter((entry): entry is PropertyEvaluation => Boolean(entry))
+      : [];
+    return {
+      ...current,
+      profile: isObject(payload.profile)
+        ? { ...current.profile, ...(payload.profile as Partial<UserProfile>) }
+        : current.profile,
+      tourNotes: isObject(payload.tourNotes)
+        ? (payload.tourNotes as Record<string, TourNote>)
+        : {},
+      comparisonNotes: Array.isArray(payload.comparisonNotes)
+        ? (payload.comparisonNotes as ComparisonNote[])
+        : [],
+      budget: isObject(payload.budget)
+        ? { ...current.budget, ...(payload.budget as Partial<BudgetSettings>) }
+        : current.budget,
+      homes: Array.isArray(payload.homes) ? (payload.homes as Home[]) : [],
+      wishlists: [],
+      requirements: [],
+      details,
+      scenarios,
+      evaluations,
+    };
+  }
 
   const activeId =
     wishlists.find((wishlist) => wishlist.isActive)?.id ?? wishlists[0].id;
@@ -2255,6 +2297,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       const home = data.homes.find((entry) => entry.id === homeId);
       if (!home) return;
 
+      if (user && supabase && home.photoPath) {
+        void removePhoto(supabase, home.photoPath).catch((error) =>
+          console.warn("Supabase photo removal failed:", error),
+        );
+      }
+
       setData((current) => {
         const tourNotes = { ...current.tourNotes };
         delete tourNotes[homeId];
@@ -2488,7 +2536,23 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const deleteWishlist = useCallback(
     (wishlistId: string) => {
-      if (data.wishlists.length <= 1) return false;
+      // Deleting the last wishlist is the explicit "start fresh" path.
+      if (data.wishlists.length === 1) {
+        for (const home of data.homes) {
+          if (user && supabase && home.photoPath) {
+            void removePhoto(supabase, home.photoPath).catch((error) =>
+              console.warn("Supabase photo removal failed:", error),
+            );
+          }
+        }
+        setData((current) => ({
+          ...emptyAccountSnapshot(),
+          profile: current.profile,
+        }));
+        pushV2(() => supabase!.from("wishlists").delete().eq("id", wishlistId));
+        return true;
+      }
+
       const remaining = data.wishlists.filter(
         (wishlist) => wishlist.id !== wishlistId,
       );
@@ -2525,7 +2589,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       }
       return true;
     },
-    [data.wishlists, pushV2],
+    [data.homes, data.wishlists, pushV2, user],
   );
 
   const setActiveWishlist = useCallback(
