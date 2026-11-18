@@ -772,8 +772,7 @@ export function WishlistScreen({
                   <button
                     type="button"
                     onClick={() => setDialog("delete")}
-                    disabled={wishlists.length <= 1}
-                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-white/60 px-3 text-[10px] font-medium text-muted transition-colors hover:border-clay/30 hover:text-clay disabled:cursor-not-allowed disabled:opacity-40"
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-white/60 px-3 text-[10px] font-medium text-muted transition-colors hover:border-clay/30 hover:text-clay"
                   >
                     <TrashIcon className="h-3 w-3" />
                     {t("wishlist.delete")}
@@ -1307,7 +1306,11 @@ export function WishlistScreen({
 
       <Sheet
         open={dialog === "delete"}
-        title={t("wishlist.deleteTitle", { name: activeName })}
+        title={
+          wishlists.length <= 1
+            ? t("wishlist.deleteLastTitle", { name: activeName })
+            : t("wishlist.deleteTitle", { name: activeName })
+        }
         onClose={() => setDialog(null)}
         footer={
           <div className="flex gap-2">
@@ -1329,7 +1332,9 @@ export function WishlistScreen({
         }
       >
         <p className="text-[12px] leading-5 text-muted">
-          {t("wishlist.deleteBody")}
+          {wishlists.length <= 1
+            ? t("wishlist.deleteLastBody")
+            : t("wishlist.deleteBody")}
         </p>
       </Sheet>
 

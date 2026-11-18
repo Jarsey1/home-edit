@@ -142,7 +142,7 @@ export const en = {
   "compare.title": "Compare Homes",
   "compare.removeConfirmTitle": "Remove {address}?",
   "compare.removeConfirmBody":
-    "It will be deleted from your homes and tour notes for everyone sharing this list.",
+    "It will be removed from your saved homes, along with its photo, notes, evaluations and budget plan.",
   "compare.notePlaceholder": "Add a note about these homes…",
   "compare.noteAria": "Comparison note",
   "compare.notes": "Comparison notes",
@@ -560,7 +560,10 @@ export const en = {
   "wishlist.delete": "Delete wishlist",
   "wishlist.deleteTitle": "Delete {name}?",
   "wishlist.deleteBody":
-    "This removes its preferences. Saved homes and their facts are not affected.",
+    "This removes its preferences. Saved homes are not affected.",
+  "wishlist.deleteLastTitle": "Delete {name} and start fresh?",
+  "wishlist.deleteLastBody":
+    "This is your last wishlist. Deleting it also removes all saved homes, photos, notes, evaluations and budget plans, and returns you to setup. This cannot be undone.",
   "wishlist.keep": "Keep wishlist",
   "wishlist.switch": "Switch wishlist",
   "wishlist.active": "Active",
@@ -736,7 +739,7 @@ export const en = {
   "property.deleteHome": "Remove home",
   "property.deleteTitle": "Remove {address}?",
   "property.deleteBody":
-    "This removes the home, its notes and budget plan. This cannot be undone.",
+    "This removes the home, its photo, notes, evaluations and budget plan. This cannot be undone.",
   "property.keepHome": "Keep home",
   "property.matchSection": "Fit with this wishlist",
   "property.notScored": "Not enough information to calculate a match.",
@@ -1194,7 +1197,7 @@ const es: Record<TranslationKey, string> = {
   "compare.title": "Comparar casas",
   "compare.removeConfirmTitle": "¿Quitar {address}?",
   "compare.removeConfirmBody":
-    "Se eliminará de tus casas y notas de visita para todos los que comparten esta lista.",
+    "Se eliminará de tus casas guardadas, junto con su foto, notas, evaluaciones y plan de presupuesto.",
   "compare.notePlaceholder": "Agrega una nota sobre estas casas…",
   "compare.noteAria": "Nota de comparación",
   "compare.notes": "Notas de comparación",
@@ -1623,7 +1626,10 @@ const es: Record<TranslationKey, string> = {
   "wishlist.delete": "Eliminar lista",
   "wishlist.deleteTitle": "¿Eliminar {name}?",
   "wishlist.deleteBody":
-    "Se eliminarán sus preferencias. Las casas guardadas y sus datos no se modifican.",
+    "Se eliminarán sus preferencias. Las casas guardadas no se modifican.",
+  "wishlist.deleteLastTitle": "¿Eliminar {name} y empezar de nuevo?",
+  "wishlist.deleteLastBody":
+    "Es tu última lista. Al eliminarla también se borran todas las casas guardadas, fotos, notas, evaluaciones y planes de presupuesto, y volverás a la configuración inicial. No se puede deshacer.",
   "wishlist.keep": "Conservar lista",
   "wishlist.switch": "Cambiar lista",
   "wishlist.active": "Activa",
@@ -1801,7 +1807,7 @@ const es: Record<TranslationKey, string> = {
   "property.deleteHome": "Eliminar casa",
   "property.deleteTitle": "¿Eliminar {address}?",
   "property.deleteBody":
-    "Se eliminará la casa, sus notas y su plan de presupuesto. No se puede deshacer.",
+    "Se eliminarán la casa, su foto, sus notas, sus evaluaciones y su plan de presupuesto. No se puede deshacer.",
   "property.keepHome": "Conservar casa",
   "property.matchSection": "Compatibilidad con esta lista",
   "property.notScored":
