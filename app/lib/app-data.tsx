@@ -1427,6 +1427,20 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Wait until the auth state is known; otherwise the legacy loader can
+      // start first and seed demo wishlists for a signed-in account.
+      if (!authReady) return;
+
+      // Signed-in accounts read only their private snapshot. Loading the
+      // legacy shared tables first can seed demo wishlists and overwrite an
+      // empty account before the snapshot wins the race.
+      if (userId) {
+        if (cancelled) return;
+        setStatus("synced");
+        setReady(true);
+        return;
+      }
+
       try {
         const [
           homesResult,
@@ -1665,7 +1679,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authReady, userId]);
 
   // Account sync: one private snapshot row per signed-in user. It is loaded
   // after the normal device/shared load so cloud data wins on a new device.
