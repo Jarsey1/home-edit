@@ -506,7 +506,9 @@ function normalizeDetails(value: unknown): PropertyDetails | null {
     photoPath:
       typeof value.photoPath === "string" && value.photoPath
         ? value.photoPath
-        : null,
+        : value.photoPath === null
+          ? null
+          : undefined,
     listingUrl: typeof value.listingUrl === "string" ? value.listingUrl : "",
     notes: typeof value.notes === "string" ? value.notes : "",
     favorite: Boolean(value.favorite),
@@ -1215,7 +1217,10 @@ function mergeDetails(home: Home, details: PropertyDetails | undefined): Home {
   return {
     ...home,
     photo: details.photo,
-    photoPath: details.photoPath ?? home.photoPath ?? null,
+    photoPath:
+      details.photoPath !== undefined
+        ? details.photoPath
+        : home.photoPath ?? null,
     listingUrl: details.listingUrl,
     notes: details.notes,
     favorite: details.favorite,
