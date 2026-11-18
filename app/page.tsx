@@ -10,7 +10,6 @@ import { CompareScreen } from "./components/screens/compare-screen";
 import { EditPropertyScreen } from "./components/screens/edit-property-screen";
 import { EvaluateScreen } from "./components/screens/evaluate-screen";
 import { MoreScreen } from "./components/screens/more-screen";
-import { OnboardingScreen } from "./components/screens/onboarding-screen";
 import { NeighborhoodScreen } from "./components/screens/neighborhood-screen";
 import { PropertyScreen } from "./components/screens/property-screen";
 import { SettingsScreen } from "./components/screens/settings-screen";
@@ -48,7 +47,6 @@ export default function HomeApp() {
     authReady,
     accountReady,
     accountSyncError,
-    wishlists,
     signOut,
   } = useAppData();
   const { t } = useI18n();
@@ -158,17 +156,6 @@ export default function HomeApp() {
             {t("more.signOut")}
           </button>
         </main>
-      </>
-    );
-  }
-
-  if (wishlists.length === 0) {
-    return (
-      <>
-        {stagingBanner}
-        <OnboardingScreen
-          onStart={(destination) => changeTab(destination)}
-        />
       </>
     );
   }

@@ -557,6 +557,10 @@ export const en = {
   "wishlist.create": "Create wishlist",
   "wishlist.rename": "Rename",
   "wishlist.duplicate": "Duplicate",
+  "wishlist.emptyTitle": "No wishlist yet",
+  "wishlist.emptyBody":
+    "Create a wishlist to add your must-haves, nice-to-haves and dealbreakers.",
+  "wishlist.createFirst": "Create my first wishlist",
   "wishlist.delete": "Delete wishlist",
   "wishlist.deleteTitle": "Delete {name}?",
   "wishlist.deleteBody":
@@ -978,6 +982,9 @@ export const en = {
     "You're getting closer! Continue evaluating your saved homes.",
   "dashboard.nextStepReady": "Your home matches are ready to compare.",
   "dashboard.createWishlist": "Create Wishlist",
+  "dashboard.noWishlistTitle": "Start with a wishlist",
+  "dashboard.noWishlistBody":
+    "Create a wishlist to define what matters, then score every home against it.",
   "dashboard.addProperty": "Add Home",
   "dashboard.evaluateHomes": "Evaluate Homes",
   "dashboard.continueEvaluation": "Continue Evaluation",
@@ -1623,6 +1630,10 @@ const es: Record<TranslationKey, string> = {
   "wishlist.create": "Crear lista",
   "wishlist.rename": "Renombrar",
   "wishlist.duplicate": "Duplicar",
+  "wishlist.emptyTitle": "Aún no hay lista",
+  "wishlist.emptyBody":
+    "Crea una lista para agregar tus imprescindibles, deseos y condiciones excluyentes.",
+  "wishlist.createFirst": "Crear mi primera lista",
   "wishlist.delete": "Eliminar lista",
   "wishlist.deleteTitle": "¿Eliminar {name}?",
   "wishlist.deleteBody":
@@ -2051,6 +2062,9 @@ const es: Record<TranslationKey, string> = {
   "dashboard.nextStepReady":
     "Tus coincidencias están listas para comparar.",
   "dashboard.createWishlist": "Crear lista",
+  "dashboard.noWishlistTitle": "Empieza con una lista",
+  "dashboard.noWishlistBody":
+    "Crea una lista para definir lo que importa y compara cada casa con ella.",
   "dashboard.addProperty": "Agregar casa",
   "dashboard.evaluateHomes": "Evaluar casas",
   "dashboard.continueEvaluation": "Continuar evaluación",
