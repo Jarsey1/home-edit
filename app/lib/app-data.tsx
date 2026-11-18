@@ -1817,19 +1817,23 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   // V2 data when the optional V2 tables have not been created yet.
   useEffect(() => {
     if (!ready) return;
+    // Signed-in data lives in the private account snapshot. A device mirror
+    // can contain stale demo defaults and must not be written or read.
+    if (userId) return;
     if (status !== "local" && v2Synced && evaluationsSynced) return;
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch {
       // Storage can be full or blocked; the in-memory state still works.
     }
-  }, [data, ready, status, v2Synced, evaluationsSynced]);
+  }, [data, ready, status, userId, v2Synced, evaluationsSynced]);
 
   // Keep separate tabs in sync with the local snapshot. Without this, a tab
   // that was opened before the active wishlist changed can keep comparing
   // against the previous wishlist until a full reload.
   useEffect(() => {
     if (!ready) return;
+    if (userId) return;
     if (status !== "local" && v2Synced && evaluationsSynced) return;
 
     const syncFromDevice = () => {
@@ -1868,7 +1872,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("focus", onVisible);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [ready, status, v2Synced, evaluationsSynced]);
+  }, [ready, status, userId, v2Synced, evaluationsSynced]);
 
   const pushMutation = useCallback(
     (run: () => PromiseLike<{ error: { message: string } | null }>) => {
