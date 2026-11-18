@@ -25,6 +25,8 @@ export type Home = {
   tourRequested: boolean;
   /** V2 details, merged from the separate property_details record. */
   photo?: string | null;
+  /** Private Storage object path when the photo is stored in Supabase. */
+  photoPath?: string | null;
   listingUrl?: string;
   notes?: string;
   favorite?: boolean;

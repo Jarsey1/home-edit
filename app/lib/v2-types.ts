@@ -103,8 +103,10 @@ export type BudgetEstimateStatus = "complete" | "assumptions" | "partial";
 
 export type PropertyDetails = {
   homeId: string;
-  /** Compressed data URL uploaded by the user. */
+  /** Compressed data URL, or a signed URL for a private Storage object. */
   photo: string | null;
+  /** Private Storage object path when the photo is stored in Supabase. */
+  photoPath?: string | null;
   listingUrl: string;
   notes: string;
   favorite: boolean;
