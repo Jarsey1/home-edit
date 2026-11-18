@@ -66,8 +66,13 @@ export function Dashboard({
     ready,
     status,
     accountSynced,
+    createWishlist,
   } = useAppData();
   const { t, locale, number } = useI18n();
+
+  function createFirstWishlist() {
+    createWishlist(t("onboarding.wishlistName"), null, true, false);
+  }
 
   const topScored = topMatches[0];
   const topHome = topScored?.home;
@@ -188,6 +193,23 @@ export function Dashboard({
       </header>
 
       <section className="mt-7 px-6">
+        {!activeWishlist ? (
+          <div className="rounded-[26px] border border-dashed border-olive/35 bg-olive/[0.04] px-5 py-6 text-center">
+            <p className="font-serif text-[22px] leading-tight tracking-[-0.01em] text-ink">
+              {t("dashboard.noWishlistTitle")}
+            </p>
+            <p className="mx-auto mt-2 max-w-[300px] text-[11px] leading-5 text-muted">
+              {t("dashboard.noWishlistBody")}
+            </p>
+            <button
+              type="button"
+              onClick={createFirstWishlist}
+              className="mt-4 min-h-11 rounded-full bg-olive px-5 text-[11px] font-medium text-cream transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
+            >
+              {t("dashboard.createWishlist")}
+            </button>
+          </div>
+        ) : (
         <div className="rounded-[26px] border border-line bg-parchment px-5 pb-5 pt-4">
           <button
             type="button"
@@ -247,6 +269,7 @@ export function Dashboard({
             ))}
           </dl>
         </div>
+        )}
       </section>
 
       <section className="mt-6 px-6">

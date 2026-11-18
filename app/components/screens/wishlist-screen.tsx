@@ -570,6 +570,50 @@ export function WishlistScreen({
   const activeName = activeWishlist
     ? translateWishlistName(activeWishlist.name, locale)
     : "";
+
+  function createFirstWishlist() {
+    createWishlist(t("onboarding.wishlistName"), null, true, false);
+  }
+
+  if (!activeWishlist) {
+    return (
+      <div className="flex flex-1 flex-col">
+        <header className="flex items-start justify-between px-6 pt-8">
+          <div className="flex items-start gap-3">
+            <BackButton onClick={onBack} label={t("common.backToDashboard")} />
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted">
+                {t("wishlist.eyebrow")}
+              </p>
+              <h1 className="mt-1 font-serif text-[31px] leading-none tracking-[-0.02em] text-ink">
+                {t("wishlist.title")}
+              </h1>
+            </div>
+          </div>
+        </header>
+
+        <div className="flex flex-1 flex-col items-center justify-center px-6 pb-16 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-olive text-cream">
+            <PlusIcon className="h-6 w-6" />
+          </span>
+          <h2 className="mt-4 font-serif text-[26px] leading-tight tracking-[-0.01em] text-ink">
+            {t("wishlist.emptyTitle")}
+          </h2>
+          <p className="mt-2 max-w-[300px] text-[12px] leading-5 text-muted">
+            {t("wishlist.emptyBody")}
+          </p>
+          <button
+            type="button"
+            onClick={createFirstWishlist}
+            className="mt-6 min-h-11 rounded-full bg-olive px-5 text-[12px] font-medium text-cream transition-colors hover:bg-olive-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-olive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
+          >
+            {t("wishlist.createFirst")}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const draftImportance: Importance =
     viewMode === "priority" && filter === "nice"
       ? "nice"
